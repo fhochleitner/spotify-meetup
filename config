@@ -1,0 +1,58 @@
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURCVENDQWUyZ0F3SUJBZ0lJV3JMUjlTdHFaeW93RFFZSktvWklodmNOQVFFTEJRQXdGVEVUTUJFR0ExVUUKQXhNS2EzVmlaWEp1WlhSbGN6QWVGdzB5TkRBME1qSXhNVFU0TXpkYUZ3MHpOREEwTWpBeE1qQXpNemRhTUJVeApFekFSQmdOVkJBTVRDbXQxWW1WeWJtVjBaWE13Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLCkFvSUJBUUNlRUs1ZXl4TXdMSDVtWlBhVDVKWCtvb3Voc2JjQ0h5dEJmNEhJWUpYd2ZDRThPaHdtOG8rTVRveGQKNzN4SGRORzkxYWI3azhPZ2x3YjdtVjBBZEg0eG9hczlSS2pEMTlkZ2owaUpIck9GcVJVUUNPaGpQK3hVSSt5ZwpLdjJKY3pTWjYzb3JGSXVXOERzaU54TzNySkh2c2RwVGU3ZkVNN3oxcFdPWURLSTU0MTRqSGJUdmI2aVExeStrCkRlU2JJYU9IZ3FBWU9ibSs2ZzloczJORUEvRkozSXprTCtXdDNUZWp1ZFhSdUlwSzlRUkNmN3B4aXJyUGVFcFgKOHJyekdOWUVQOHcycHIxOVRuY0Jpb0RJVmJGYmJaNUwrQ0dVcUNEdFY4R2s2ZlZXZkM2Q0VacHhKRXpwem5lTQp3Um1BMnowUjlLcDB2Qkt3S055SU54WVVseFhIQWdNQkFBR2pXVEJYTUE0R0ExVWREd0VCL3dRRUF3SUNwREFQCkJnTlZIUk1CQWY4RUJUQURBUUgvTUIwR0ExVWREZ1FXQkJRSzlhZmtvTkVMRHd6NVBHUEtrdFVXMVJSNE9EQVYKQmdOVkhSRUVEakFNZ2dwcmRXSmxjbTVsZEdWek1BMEdDU3FHU0liM0RRRUJDd1VBQTRJQkFRQTZadGM2bjJIUgppMUVCMm5ldHlwK0tkT003dU5qUW5KRXA5Y1hmNnFDakdmRW91M2hLRWJhanVCUE44QlJHOW9VOENzQ2VWTmJGCjZPTGUydlc2R0NVVFgrNjJveEI2WmtzSkFMTG1GRDdTZmd5ZUZyU3BQVTQ0WXprZE1hS2x0VE82eUY5VXg0R0gKdUtFSnBXeWNnMzg5WjI3bkhWOVMzc3V5cDdXVnZPRmgwaWRQRTczZ2pTajZlSHdsMnFCMk9ydm1FWVl4dlFzaAp4ajhMaXNOSWg3ajFjRnRrRXZmRURwUFN1RlZoemZ5aVI0cjIyZjNhcmRXRTRMMlpNYTRRREQ4N3I1K1hpdDBkCm4wSHNyWVcxS08rRk0wMmhwa0pra3Y4THZUZDFTSktNbmZKWXBnTDFIK1dJd2ZHYThCcTF4TGlRR1ZWNzBvMnMKemNCVHpWaWljRHhrCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+    server: https://EE1036FB5C9079C55EC0C5ACEF08684D.gr7.eu-west-1.eks.amazonaws.com
+  name: arn:aws:eks:eu-west-1:767398009129:cluster/route53-demo
+- cluster:
+    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURCVENDQWUyZ0F3SUJBZ0lJV3JMUjlTdHFaeW93RFFZSktvWklodmNOQVFFTEJRQXdGVEVUTUJFR0ExVUUKQXhNS2EzVmlaWEp1WlhSbGN6QWVGdzB5TkRBME1qSXhNVFU0TXpkYUZ3MHpOREEwTWpBeE1qQXpNemRhTUJVeApFekFSQmdOVkJBTVRDbXQxWW1WeWJtVjBaWE13Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLCkFvSUJBUUNlRUs1ZXl4TXdMSDVtWlBhVDVKWCtvb3Voc2JjQ0h5dEJmNEhJWUpYd2ZDRThPaHdtOG8rTVRveGQKNzN4SGRORzkxYWI3azhPZ2x3YjdtVjBBZEg0eG9hczlSS2pEMTlkZ2owaUpIck9GcVJVUUNPaGpQK3hVSSt5ZwpLdjJKY3pTWjYzb3JGSXVXOERzaU54TzNySkh2c2RwVGU3ZkVNN3oxcFdPWURLSTU0MTRqSGJUdmI2aVExeStrCkRlU2JJYU9IZ3FBWU9ibSs2ZzloczJORUEvRkozSXprTCtXdDNUZWp1ZFhSdUlwSzlRUkNmN3B4aXJyUGVFcFgKOHJyekdOWUVQOHcycHIxOVRuY0Jpb0RJVmJGYmJaNUwrQ0dVcUNEdFY4R2s2ZlZXZkM2Q0VacHhKRXpwem5lTQp3Um1BMnowUjlLcDB2Qkt3S055SU54WVVseFhIQWdNQkFBR2pXVEJYTUE0R0ExVWREd0VCL3dRRUF3SUNwREFQCkJnTlZIUk1CQWY4RUJUQURBUUgvTUIwR0ExVWREZ1FXQkJRSzlhZmtvTkVMRHd6NVBHUEtrdFVXMVJSNE9EQVYKQmdOVkhSRUVEakFNZ2dwcmRXSmxjbTVsZEdWek1BMEdDU3FHU0liM0RRRUJDd1VBQTRJQkFRQTZadGM2bjJIUgppMUVCMm5ldHlwK0tkT003dU5qUW5KRXA5Y1hmNnFDakdmRW91M2hLRWJhanVCUE44QlJHOW9VOENzQ2VWTmJGCjZPTGUydlc2R0NVVFgrNjJveEI2WmtzSkFMTG1GRDdTZmd5ZUZyU3BQVTQ0WXprZE1hS2x0VE82eUY5VXg0R0gKdUtFSnBXeWNnMzg5WjI3bkhWOVMzc3V5cDdXVnZPRmgwaWRQRTczZ2pTajZlSHdsMnFCMk9ydm1FWVl4dlFzaAp4ajhMaXNOSWg3ajFjRnRrRXZmRURwUFN1RlZoemZ5aVI0cjIyZjNhcmRXRTRMMlpNYTRRREQ4N3I1K1hpdDBkCm4wSHNyWVcxS08rRk0wMmhwa0pra3Y4THZUZDFTSktNbmZKWXBnTDFIK1dJd2ZHYThCcTF4TGlRR1ZWNzBvMnMKemNCVHpWaWljRHhrCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+    server: https://EE1036FB5C9079C55EC0C5ACEF08684D.gr7.eu-west-1.eks.amazonaws.com
+  name: route53-demo.eu-west-1.eksctl.io
+contexts:
+- context:
+    cluster: arn:aws:eks:eu-west-1:767398009129:cluster/route53-demo
+    namespace: demo
+    user: arn:aws:eks:eu-west-1:767398009129:cluster/route53-demo
+  name: arn:aws:eks:eu-west-1:767398009129:cluster/route53-demo
+- context:
+    cluster: route53-demo.eu-west-1.eksctl.io
+    namespace: httpd-demo
+    user: crossplane-demo@route53-demo.eu-west-1.eksctl.io
+  name: crossplane-demo@route53-demo.eu-west-1.eksctl.io
+current-context: crossplane-demo@route53-demo.eu-west-1.eksctl.io
+kind: Config
+preferences: {}
+users:
+- name: arn:aws:eks:eu-west-1:767398009129:cluster/route53-demo
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      args:
+      - --region
+      - eu-west-1
+      - eks
+      - get-token
+      - --cluster-name
+      - route53-demo
+      - --output
+      - json
+      command: aws
+      env: null
+      interactiveMode: IfAvailable
+      provideClusterInfo: false
+- name: crossplane-demo@route53-demo.eu-west-1.eksctl.io
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      args:
+      - token
+      - -i
+      - route53-demo
+      command: aws-iam-authenticator
+      env:
+      - name: AWS_STS_REGIONAL_ENDPOINTS
+        value: regional
+      - name: AWS_DEFAULT_REGION
+        value: eu-west-1
+      interactiveMode: IfAvailable
+      provideClusterInfo: false

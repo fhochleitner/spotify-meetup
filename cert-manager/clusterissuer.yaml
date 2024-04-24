@@ -1,0 +1,121 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    email: felix.hochleitner@squer.io
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      # Secret resource that will be used to store the account's private key.
+      name: example-issuer-account-key
+    solvers:
+      - selector:
+          dnsZones:
+            - "fhochleitner.dev"
+        dns01:
+          route53:
+            region: eu-west-1
+            hostedZoneID: Z051402718Y86EFGK6LD4
+            accessKeyIDSecretRef:
+              name: route53-aws-credentials
+              key: ACCESS_KEY_ID
+            secretAccessKeySecretRef:
+              name: route53-aws-credentials
+              key: SECRET_ACCESS_KEY
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: httpd
+  namespace: httpd-demo
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - demo.fhochleitner.dev
+      secretName: quickstart-example-tls
+  rules:
+    - host: demo.fhochleitner.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: httpd
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spotify-auth-proxy
+  namespace: spotify-auth-proxy
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - spotify.fhochleitner.dev
+      secretName: spotify-auth-proxy-tls
+  rules:
+    - host: spotify.fhochleitner.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: spotify-auth-proxy
+                port:
+                  number: 27228
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: provider-spotify
+  namespace: crossplane-system
+type: Opaque
+stringData:
+  credentials: |
+    {
+      "api_key": "ML17qqrH4QE7KTC788vheF40UNGOO59x5Jx1DSGvbcuugm465VObuX4rwc8yrAkz",
+      "auth_server": "http://spotify-auth-proxy.spotify-auth-proxy.svc:27228"
+    }
+#  "auth_server": "https://spotify.fhochleitner.dev/authorize?token=DQZ4raeIgM8rEWnKi_FXkSn1NoJHu6iclJvOdu8ddXEE22-nOd2oOgnHa5kl7vxU"
+---
+apiVersion: spotify.crossplane.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      name: provider-spotify
+      namespace: crossplane-system
+      key: credentials
+---
+apiVersion: playlist.spotify.crossplane.io/v1alpha1
+kind: Playlist
+metadata:
+  name: crossplane-can-play-music
+spec:
+  forProvider:
+    name: "Worst managed playlist ever "
+    description: "created and managed by crossplane-contrib/provider-spotify"
+    public: true
+    tracks:
+      - "0uUMRuyu9EukwtJAW81m3e"
+      - "5Mri1bQdUrkcOkgZuudO16"
+      - "0BZMYVlHBQt3X4oqizPEDR"
+      - "2FVFnSm4CQzDxJBVyzWHsR"
+  providerConfigRef:
+    name: default
+---

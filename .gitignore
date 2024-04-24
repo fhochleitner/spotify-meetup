@@ -1,0 +1,9 @@
+/.env
+/.creds/
+/aws-creds-certmanager.conf
+/gke_gcloud_auth_plugin_cache
+/kubeconfig.yaml
+/azure-creds.json
+/bin
+/kubeconfig.yaml
+.idea/
