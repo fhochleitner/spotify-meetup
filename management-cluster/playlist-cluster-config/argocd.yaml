@@ -1,0 +1,76 @@
+apiVersion: helm.crossplane.io/v1beta1
+kind: Release
+metadata:
+  name: argocd-playlist-cluster
+spec:
+  forProvider:
+    chart:
+      name: argo-cd
+      repository: https://argoproj.github.io/argo-helm
+      version: 6.7.17
+    namespace: argocd
+    set:
+      - name: "configs.secret.argocdServerAdminPassword"
+        value: "$2a$10$m3eTlEdRen0nS86c5Zph5u/bDFQMcWZYdG3NVdiyaACCqoxLJaz16"
+      - name: "configs.secret.argocdServerAdminPasswordMtime"
+        value: "2021-11-08T15:04:05Z"
+      - name: "cm.application.resourceTrackingMethod"
+        value: "annotation"
+      - name: "cm.timeout.reconciliation"
+        value: "60s"
+      - name: "server.ingress.enabled"
+        value: "true"
+      - name: "server.ingress.ingressClassName"
+        value: "nginx"
+      - name: "server.ingress.hostname"
+        value: "argocd.fhochleitner.dev"
+      - name: 'configs.params.server\.insecure'
+        value: "true"
+      - name: 'server.ingress.annotations."cert-manager\.io/cluster-issuer"'
+        value: "letsencrypt"
+      - name: "server.ingress.extraTls[0].hosts[0]"
+        value: "argocd.fhochleitner.dev"
+      - name: "server.ingress.extraTls[0].secretName"
+        value: "argocd-fhochleitner-dev-tls"
+    values:
+      service:
+        type: ClusterIP
+  providerConfigRef:
+    name: playlist-cluster
+---
+apiVersion: kubernetes.crossplane.io/v1alpha2
+kind: Object
+metadata:
+  annotations:
+    crossplane.io/external-name: playlist-cluster-argocd-application
+  generateName: playlist-cluster-argocd-applciation-
+  name: management-cluster-argocd-application
+spec:
+  deletionPolicy: Delete
+  forProvider:
+    manifest:
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: managed-app-playlist-cluster
+        namespace: argocd
+      spec:
+        project: default
+        source:
+          repoURL: https://github.com/fhochleitner/spotify-meetup
+          targetRevision: HEAD
+          path: playlist-cluster/apps
+        destination:
+          server: https://kubernetes.default.svc
+          namespace: argocd
+        syncPolicy:
+          automated:
+            selfHeal: true
+            prune: true
+            allowEmpty: true
+  managementPolicies:
+    - '*'
+  providerConfigRef:
+    name: playlist-cluster
+  readiness:
+    policy: SuccessfulCreate

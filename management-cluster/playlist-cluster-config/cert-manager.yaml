@@ -1,0 +1,83 @@
+apiVersion: kubernetes.crossplane.io/v1alpha2
+kind: Object
+metadata:
+  name: cert-manager-namespace
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: cert-manager
+  providerConfigRef:
+    name: playlist-cluster
+---
+apiVersion: kubernetes.crossplane.io/v1alpha2
+kind: Object
+metadata:
+  name: cert-manager-secret
+spec:
+  references:
+    # Use patchesFrom to patch field from other k8s resource to this object
+    - patchesFrom:
+        apiVersion: v1
+        kind: Secret
+        name: cert-manager-creds
+        namespace: crossplane-system
+        fieldPath: data.secret_access_key
+      toFieldPath: data.secret_access_key
+    - patchesFrom:
+        apiVersion: v1
+        kind: Secret
+        name: cert-manager-creds
+        namespace: crossplane-system
+        fieldPath: data.access_key_id
+      toFieldPath: data.access_key_id
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        namespace: cert-manager
+        name: cert-manager-creds
+      data:
+        secret_access_key: "will-be-overwritten"
+        access_key_id: "will-be-overwritten"
+  providerConfigRef:
+    name: playlist-cluster
+---
+apiVersion: kubernetes.crossplane.io/v1alpha2
+kind: Object
+metadata:
+  name: cert-manager-clusterissuer
+spec:
+  forProvider:
+    manifest:
+      apiVersion: cert-manager.io/v1
+      kind: ClusterIssuer
+      metadata:
+        name: letsencrypt
+        namespace: cert-manager
+      spec:
+        acme:
+          server: https://acme-v02.api.letsencrypt.org/directory
+          email: felix.hochleitner@squer.io
+          privateKeySecretRef:
+              name: letsencrypt
+          solvers:
+            - selector:
+                dnsZones:
+                  - "fhochleitner.dev"
+              dns01:
+                route53:
+                  hostedZoneID: Z051402718Y86EFGK6LD4
+                  region: eu-west-1
+                  accessKeyIDSecretRef:
+                    name: cert-manager-creds
+                    key: access_key_id
+                  secretAccessKeySecretRef:
+                    name: cert-manager-creds
+                    key: secret_access_key
+  providerConfigRef:
+    name: playlist-cluster
+---

@@ -6,4 +6,6 @@
 /azure-creds.json
 /bin
 /kubeconfig.yaml
+**/kubeconfig
 .idea/
+/nuke.sh

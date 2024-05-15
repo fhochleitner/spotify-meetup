@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: playlists
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: Validate=false,SkipDryRunOnMissingResource
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/fhochleitner/spotify-meetup
+    targetRevision: HEAD
+    path: playlist-cluster/playlists
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+      allowEmpty: true

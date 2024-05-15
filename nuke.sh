@@ -1,0 +1,2 @@
+#!/bin/bash
+podman run --user root  -v /Users/felix.hochleitner/GolandProjects/aws-nuke/config.yaml:/tmp/config.yaml quay.io/rebuy/aws-nuke:v2.22.1 --access-key-id=$ACCESS_KEY --secret-access-key=$SECRET_ACCESS_KEY --config /tmp/config.yaml --force --no-dry-run

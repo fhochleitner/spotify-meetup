@@ -1,0 +1,155 @@
+apiVersion: kubernetes.crossplane.io/v1alpha2
+kind: Object
+metadata:
+  name: spotify-ns
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: spotify
+      spec: {}
+  providerConfigRef:
+    name: playlist-cluster
+---
+apiVersion: kubernetes.crossplane.io/v1alpha2
+kind: Object
+metadata:
+  name: spotify-auth-proxy-secret
+spec:
+  references:
+    - patchesFrom:
+        apiVersion: v1
+        kind: Secret
+        name: spotify-auth-proxy-config
+        namespace: crossplane-system
+        fieldPath: data.SPOTIFY_CLIENT_ID
+      toFieldPath: data.spotifyClientID
+    - patchesFrom:
+        apiVersion: v1
+        kind: Secret
+        name: spotify-auth-proxy-config
+        namespace: crossplane-system
+        fieldPath: data.SPOTIFY_CLIENT_SECRET
+      toFieldPath: data.spotifyClientSecret
+    - patchesFrom:
+        apiVersion: v1
+        kind: Secret
+        name: spotify-auth-proxy-config
+        namespace: crossplane-system
+        fieldPath: data.SPOTIFY_PROXY_API_KEY
+      toFieldPath: data.spotifyProxyAPIKey
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: spotify-auth-proxy-config
+        namespace: spotify
+      spec:
+        data:
+          spotifyClientId: "will-be-overwritten"
+          spotifyClientSecret: "will-be-overwritten"
+          spotifyProxyAPIKey: "will-be-overwritten"
+          SPOTIFY_PROXY_BASE_URL: "will-be-overwritten"
+  providerConfigRef:
+    name: playlist-cluster
+---
+apiVersion: kubernetes.crossplane.io/v1alpha2
+kind: Object
+metadata:
+  name: spotify-auth-proxy-ingress
+spec:
+  forProvider:
+    manifest:
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        annotations:
+          cert-manager.io/cluster-issuer: letsencrypt
+        name: spotify-auth-proxy
+        namespace: spotify
+      spec:
+        ingressClassName: nginx
+        rules:
+          - host: spotify.fhochleitner.dev
+            http:
+              paths:
+                - backend:
+                    service:
+                      name: spotify-auth-proxy
+                      port:
+                        number: 27228
+                  path: /
+                  pathType: Prefix
+        tls:
+          - hosts:
+              - spotify.fhochleitner.dev
+            secretName: spotify-fhochleitner-dev-tls
+  providerConfigRef:
+    name: playlist-cluster
+---
+apiVersion: kubernetes.crossplane.io/v1alpha2
+kind: Object
+metadata:
+  name: provider-spotify
+spec:
+  forProvider:
+    manifest:
+      apiVersion: pkg.crossplane.io/v1
+      kind: Provider
+      metadata:
+        name: provider-spotify
+        namespace: crossplane-system
+      spec:
+        package: xpkg.upbound.io/crossplane-contrib/provider-spotify:v0.2.2
+  providerConfigRef:
+    name: playlist-cluster
+---
+apiVersion: kubernetes.crossplane.io/v1alpha2
+kind: Object
+metadata:
+  name: provider-spotify-secret
+spec:
+  references:
+    - patchesFrom:
+        apiVersion: v1
+        kind: Secret
+        name: spotify-provider-config
+        namespace: crossplane-system
+        fieldPath: data.credentials
+      toFieldPath: data.credentials
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: provider-spotify-creds
+        namespace: crossplane-system
+      type: Opaque
+      data:
+        credentials: "will-be-overwritten"
+  providerConfigRef:
+    name: playlist-cluster
+---
+apiVersion: kubernetes.crossplane.io/v1alpha2
+kind: Object
+metadata:
+  name: providerconfig-spotify
+spec:
+  forProvider:
+    manifest:
+      apiVersion: spotify.crossplane.io/v1beta1
+      kind: ProviderConfig
+      metadata:
+        name: default
+      spec:
+        credentials:
+          secretRef:
+            key: credentials
+            name: provider-spotify-creds
+            namespace: crossplane-system
+          source: Secret
+  providerConfigRef:
+    name: playlist-cluster

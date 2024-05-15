@@ -1,20 +1,21 @@
----
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: a-team
+  name: infrastructure
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: Validate=false,SkipDryRunOnMissingResource
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
-    repoURL: https://github.com/fhochleitner/spotify-meetup.git
+    repoURL: https://github.com/fhochleitner/spotify-meetup
     targetRevision: HEAD
-    path: gitops
+    path: playlist-cluster/base
   destination:
     server: https://kubernetes.default.svc
-    namespace: gitops
+    namespace: argocd
   syncPolicy:
     automated:
       selfHeal: true

@@ -1,0 +1,78 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: playlist-cluster-base
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/fhochleitner/spotify-meetup
+    targetRevision: HEAD
+    path: management-cluster/base
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: spotify
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - Validate=false
+      - SkipDryRunOnMissingResource=true
+    automated:
+      selfHeal: true
+      prune: true
+      allowEmpty: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: playlist-cluster-cluster
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/fhochleitner/spotify-meetup
+    targetRevision: HEAD
+    path: management-cluster/cluster
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: spotify
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - Validate=false
+      - SkipDryRunOnMissingResource=true
+    automated:
+      selfHeal: true
+      prune: true
+      allowEmpty: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: playlist-cluster-config
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/fhochleitner/spotify-meetup
+    targetRevision: HEAD
+    path: management-cluster/playlist-cluster-config
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: spotify
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - Validate=false
+      - SkipDryRunOnMissingResource=true
+    automated:
+      selfHeal: true
+      prune: true
+      allowEmpty: true

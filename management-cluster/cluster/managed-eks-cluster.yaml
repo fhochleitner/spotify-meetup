@@ -1,0 +1,31 @@
+apiVersion: aws.platform.upbound.io/v1alpha1
+kind: XEKS
+metadata:
+  name: playlist-cluster
+spec:
+  parameters:
+    iam:
+      roleArn: ${data.aws_eks_iam_default_admin}
+    id:  playlist-cluster
+    nodes:
+      count: 3
+      instanceType: t3.small
+    region: eu-west-1
+    deletionPolicy: Delete
+    version: "1.28"
+    providerConfigName: default
+  writeConnectionSecretToRef:
+    name: configuration-aws-eks-management-cluster
+    namespace: crossplane-system
+---
+apiVersion: aws.platform.upbound.io/v1alpha1
+kind: XNetwork
+metadata:
+  name: playlist-cluster
+spec:
+  parameters:
+    id: playlist-cluster
+    region: eu-west-1
+  writeConnectionSecretToRef:
+    name: configuration-aws-eks-playlist-network
+    namespace: crossplane-system

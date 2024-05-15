@@ -2,6 +2,13 @@
 
 set -e
 
+
+
+if [ -n "$1" ]; then
+    EXTRA_ARGS=" --name ${1}"
+fi
+
+
 gum style \
 	--foreground 212 --border-foreground 212 --border double \
 	--margin "1 2" --padding "2 4" \
@@ -35,13 +42,13 @@ rm -f .env
 # Control Plane Cluster #
 #########################
 
-kind create cluster --config kind.yaml || gum confirm "
+kind create cluster"${EXTRA_ARGS}" --config kind.yaml || gum confirm "
 Failed to create kind cluster with the provided configuration.
 If the cluster is already existing you can continue if you are sure
 that it can be used for this and is not required for other purposes."
 
 kubectl apply \
-    --filename https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+    --filename https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml --wait
 
 ##############
 # Crossplane #
@@ -54,26 +61,25 @@ helm upgrade --install crossplane crossplane \
     --repo https://charts.crossplane.io/stable \
     --namespace crossplane-system --create-namespace --wait
 
-kubectl apply -f providers/provider-kubernetes-incluster.yaml
-
-kubectl apply -f providers/provider-helm-incluster.yaml
-
 ## Secrets
-
 kubectl create secret generic aws-creds -n crossplane-system \
-    --from-file creds=../.creds/aws-creds
+    --from-file creds=../.creds/aws-creds || true
+
+source ../.creds/cert-manager
+kubectl create secret generic cert-manager-creds -n crossplane-system \
+    --from-literal access_key_id=${CERT_MANAGER_ACCESS_KEY} --from-literal secret_access_key=${CERT_MANAGER_SECRET_ACCESS_KEY} || true
 
 kubectl create ns spotify || true
+
+source ../.creds/spotify-client
+kubectl create secret generic spotify-auth-proxy-config --from-literal SPOTIFY_CLIENT_ID=${CLIENT_ID} --from-literal SPOTIFY_CLIENT_SECRET=${CLIENT_SECRET} --from-literal SPOTIFY_PROXY_API_KEY=${SPOTIFY_PROXY_API_KEY} --from-literal SPOTIFY_PROXY_API_URL=spotify.fhochleitner.dev -n crossplane-system
+kubectl create secret generic spotify-provider-config --from-file=credentials=../.creds/spotify-provider-config-secret -n crossplane-system
 
 ###########
 # Argo CD #
 ###########
 
-REPO_URL=$(git config --get remote.origin.url)
-# workaround to avoid setting up SSH key in ArgoCD
-REPO_URL=$(echo $REPO_URL | sed 's/git@github.com:/https:\/\/github.com\//') # replace git@github.com: to https://github.com/
-
-yq --inplace ".spec.source.repoURL = \"$REPO_URL\"" argocd/apps.yaml
+sleep 30 # sleep to wait for nginx ingress to be completely ready
 
 helm upgrade --install argocd argo-cd \
     --repo https://argoproj.github.io/argo-helm \

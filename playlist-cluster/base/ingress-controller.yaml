@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx-ingress-controller
+  namespace: argocd
+spec:
+  project: default
+  source:
+    chart: ingress-nginx
+    repoURL:  https://kubernetes.github.io/ingress-nginx
+    targetRevision: 4.10.1
+    helm:
+      releaseName: nginx-ingress-controller
+      parameters:
+        - name: 'controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"'
+          value: "nlb"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ingress-controller
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      selfHeal: true
+      prune: true
+      allowEmpty: true
