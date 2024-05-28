@@ -1,0 +1,20 @@
+apiVersion: playlist.spotify.crossplane.io/v1alpha1
+kind: Playlist
+metadata:
+  name: pl-crossplane-demo
+spec:
+  deletionPolicy: Delete
+  forProvider:
+    description: created and managed by crossplane-provider-spotify
+    name: Overengineering is Life. Overengineering is Love.
+    public: true
+    tracks:
+      - 3Dl8X2onr4QAc1xdnfSUbJ
+      - 7hASMNV7c7U516n1vIugnR
+      - 5PD89x8Qc3sDXoxOFXUfAT
+      - 4waVSC9eSkrt6RxJK3DhwW
+      - 5E5Tkvq7601Xnqho1QHFs4
+  managementPolicies:
+    - '*'
+  providerConfigRef:
+    name: default
