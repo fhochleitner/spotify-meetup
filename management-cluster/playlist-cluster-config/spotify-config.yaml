@@ -172,7 +172,7 @@ spec:
 apiVersion: route53.aws.upbound.io/v1beta1
 kind: Record
 metadata:
-  name: fhochleitner.dev
+  name: fhochleitner.dev-faulty
 spec:
   forProvider:
     name: fhochleitner.dev
