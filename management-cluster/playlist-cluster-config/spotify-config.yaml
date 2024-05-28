@@ -153,3 +153,33 @@ spec:
           source: Secret
   providerConfigRef:
     name: playlist-cluster
+---
+apiVersion: route53.aws.upbound.io/v1beta1
+kind: Record
+metadata:
+  name: fhochleitner.dev
+spec:
+  forProvider:
+    name: fhochleitner.dev
+    alias:
+      - evaluateTargetHealth: true
+        name: a67b53e0ed5044e9cb880378307cbacc-9242b36b7fa2574a.elb.eu-west-1.amazonaws.com
+        zoneId: Z2IFOLAFXWLO4F
+    region: eu-west-1
+    type: A
+    zoneId: Z051402718Y86EFGK6LD4
+---
+apiVersion: route53.aws.upbound.io/v1beta1
+kind: Record
+metadata:
+  name: fhochleitner.dev
+spec:
+  forProvider:
+    name: fhochleitner.dev
+    alias:
+      - evaluateTargetHealth: true
+        name: a67b53e0ed5044e9cb880378307cbacc-9242b36b7fa2574a.elb.eu-west-1.amazonaws.com
+        zoneId: blubb
+    region: eu-west-1
+    type: A
+    zoneId: blubb
