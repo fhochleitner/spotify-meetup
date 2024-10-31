@@ -1,0 +1,274 @@
+kind: Composition
+apiVersion: apiextensions.crossplane.io/v1
+metadata:
+  name: xclusternetworks.aws.squer.meetup.com
+  labels:
+    provider: aws
+  annotations:
+    crossplane.io/composition-resource-name: xclusternetworks.aws.squer.meetup.com
+spec:
+  compositeTypeRef:
+    apiVersion: aws.squer.meetup.com/v1alpha2
+    kind: XClusterNetwork
+  mode: Pipeline
+  pipeline:
+    - step: render-templates
+      functionRef:
+        name: crossplane-contrib-function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: |
+            {{ $params := .observed.composite.resource.spec.parameters }}
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: VPC
+            metadata:
+              labels:
+                networks.aws.squer.meetup.com/network-id: {{ $params.id }}
+              annotations:
+                {{ setResourceNameAnnotation ("vpc") }}
+              name: vpc-{{ $params.id }}
+            spec:
+              forProvider:
+                cidrBlock: {{ $params.vpcCidrBlock }}
+                enableDnsHostnames: true
+                enableDnsSupport: true
+                tags:
+                  Name: {{ .observed.composite.resource.metadata.name }}
+                region: {{ $params.region }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy | default "Delete" }}
+            ---
+            {{ range $i, $subnet := $params.subnets }}
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: Subnet
+            metadata:
+              name: subnet-{{ $params.id }}-{{ $subnet.type }}-{{ $params.region }}{{ $subnet.availabilityZone }}
+              labels:
+                zone: {{$params.region}}{{ $subnet.availabilityZone }}
+                access: {{ $subnet.type }}
+                networks.aws.squer.meetup.com/network-id: {{ $params.id }}
+              annotations:
+                {{ setResourceNameAnnotation (printf "subnet-%s%s.%s" $params.region $subnet.availabilityZone $subnet.type) }}
+            spec:
+              forProvider:
+                cidrBlock: {{ $subnet.cidrBlock }}
+                {{ if eq $subnet.type "public" }}
+                mapPublicIpOnLaunch: true
+                {{ end }}
+                tags:
+                  Name: {{ $params.id }}-{{ $subnet.type }}-{{ $params.region }}{{ $subnet.availabilityZone }}
+                {{- if eq $subnet.type "private" }}
+                  kubernetes.io/role/internal-elb: "1"
+                  kubernetes.io/cluster/{{ $params.id }}: owned
+                  karpenter.sh/discovery: "{{ $params.id }}"
+                {{- else }}
+                  kubernetes.io/role/elb: "1"
+                  kubernetes.io/cluster/{{ $params.id }}: shared
+                {{- end }}
+                  networks.aws.squer.meetup.com/network-id: {{ $params.id }}
+                region: {{ $params.region }}
+                vpcIdSelector:
+                  matchControllerRef: true
+                availabilityZone: {{ $params.region }}{{ $subnet.availabilityZone }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+            ---
+            {{- if eq $subnet.type "public" }}
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: EIP
+            metadata:
+              labels:
+                networks.aws.squer.meetup.com/network-id: {{ $params.id }}
+                zone: {{ $params.region }}{{ $subnet.availabilityZone }}
+              annotations: 
+                {{ setResourceNameAnnotation (printf "eip-%s%s" $params.region $subnet.availabilityZone) }}
+            spec:
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy | default "Delete" }}
+              forProvider:
+                region: {{ $params.region }}
+            {{- end }}
+            ---
+            {{- if eq $subnet.type "private" }}
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: RouteTable
+            metadata:
+              labels:
+                networks.aws.squer.meetup.com/network-id: {{ $params.id }}
+                access: private
+                zone: {{ $params.region }}{{ $subnet.availabilityZone }}
+              annotations:
+                {{ setResourceNameAnnotation (printf "rt-%s-%s-%s%s" $params.id "private" $params.region $subnet.availabilityZone) }}
+            spec:
+              forProvider:
+                vpcIdSelector:
+                  matchControllerRef: true
+                region: {{ $params.region }}
+                tags:
+                  Name: {{ $params.id }}-private-{{ $params.region }}{{ $subnet.availabilityZone }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy | default "Delete" }}
+            ---
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: Route
+            metadata:
+              labels:
+                networks.aws.squer.meetup.com/network-id: {{ $params.id }}
+                access: private
+                zone: {{ $params.region }}{{ $subnet.availabilityZone }}
+              annotations:
+                {{ setResourceNameAnnotation (printf "route-private-%s%s" $params.region $subnet.availabilityZone) }}
+            spec:
+              forProvider:
+                destinationCidrBlock: 0.0.0.0/0
+                natGatewayIdSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    zone: {{ $params.region }}{{ $subnet.availabilityZone }}
+                routeTableIdSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    access: private
+                    zone: {{ $params.region }}{{ $subnet.availabilityZone }}
+                region: {{ $params.region }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy | default "Delete" }}
+            ---
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: NATGateway
+            metadata:
+              labels: 
+                networks.aws.squer.meetup.com/network-id: {{ $params.id }}
+                zone: {{ $params.region }}{{ $subnet.availabilityZone }}
+              name: ngw-{{ $params.id }}-{{ $params.region }}{{ $subnet.availabilityZone }}-private
+              annotations:
+                {{ setResourceNameAnnotation (printf "natgateway-%s%s" $params.region $subnet.availabilityZone) }}
+            spec:
+              forProvider:
+                region: {{ $params.region }}
+                connectivityType: public
+                allocationIdSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    zone: {{ $params.region }}{{ $subnet.availabilityZone }}
+                subnetIdSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    access: public
+                    zone: {{ $params.region }}{{ $subnet.availabilityZone }}
+                tags:
+                  Name: {{ $params.id }}-{{ $params.region }}{{ $subnet.availabilityZone }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy | default "Delete" }}
+            ---                      
+            {{- end }}
+            {{- end }}
+            {{ if $params.enableInternetGateway }}
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: InternetGateway
+            metadata:
+              labels:
+                networks.aws.squer.meetup.com/network-id: {{ $params.id }}
+              annotations:
+                {{ setResourceNameAnnotation ("igw") }}
+            spec:
+              forProvider:
+                vpcIdSelector:
+                  matchControllerRef: true
+                region: {{ $params.region }}
+                tags:
+                  Name: {{ .observed.composite.resource.metadata.name }}-public
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy | default "Delete" }}
+            ---
+            {{- end }}
+            {{- if $params.enableInternetGateway }}
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: RouteTable
+            metadata:
+              labels:
+                networks.aws.squer.meetup.com/network-id: {{ $params.id }}
+                access: public
+              annotations:
+                {{ setResourceNameAnnotation (printf "rt-%s-%s" $params.id "public") }}
+            spec:
+              forProvider:
+                vpcIdSelector:
+                  matchControllerRef: true
+                region: {{ $params.region }}
+                tags:
+                  Name: {{ .observed.composite.resource.metadata.name }}-public
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy | default "Delete" }}
+            ---
+            {{- end }}
+            {{- if $params.enableInternetGateway }}
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: Route
+            metadata:
+              labels:
+                networks.aws.squer.meetup.com/network-id: {{ $params.id }}
+                access: public
+              annotations:
+                {{ setResourceNameAnnotation ("route-public") }}
+            spec:
+              forProvider:
+                destinationCidrBlock: 0.0.0.0/0
+                gatewayIdSelector:
+                  matchControllerRef: true
+                routeTableIdSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    access: public
+                region: {{ $params.region }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy | default "Delete" }}
+            ---
+            {{- end }}
+            {{- range $i, $subnet := $params.subnets }}
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: RouteTableAssociation
+            metadata:
+              labels:
+                networks.aws.squer.meetup.com/network-id: {{ $params.id }}
+                access: {{ $subnet.type }}
+                zone: {{ $params.region }}{{ $subnet.availabilityZone }}
+              annotations:
+                {{ setResourceNameAnnotation (printf "rta-%s%s-%s" $params.region $subnet.availabilityZone $subnet.type) }}
+            spec:
+              forProvider:
+                region: {{ $params.region }}
+                routeTableIdSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    access: {{ $subnet.type }}
+                    {{- if eq $subnet.type "private" }}
+                    zone: {{ $params.region }}{{ $subnet.availabilityZone }}
+                    {{- end }} 
+                subnetIdSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    access: {{ $subnet.type }}
+                    zone: {{ $params.region }}{{ $subnet.availabilityZone }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+            ---
+            {{- end }}
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: crossplane-contrib-function-auto-ready
+  writeConnectionSecretsToNamespace: crossplane-system
+---

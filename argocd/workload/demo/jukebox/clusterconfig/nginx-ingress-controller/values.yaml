@@ -1,0 +1,12 @@
+nginx-ingress-controller:
+  service:
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: nlb
+      service.beta.kubernetes.io/aws-load-balancer-internal: "false"
+      service.beta.kubernetes.io/aws-load-balancer-proxy-protocol: "*"
+
+  replicaCount: 3
+  ingressClassResource:
+    default: true
+  config:
+    use-forwarded-headers: "true"

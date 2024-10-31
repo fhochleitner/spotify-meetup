@@ -1,0 +1,15 @@
+apiVersion: pkg.crossplane.io/v1beta1
+kind: Function
+metadata:
+  name: crossplane-contrib-function-auto-ready
+spec:
+  ignoreCrossplaneConstraints: false
+  package: xpkg.upbound.io/crossplane-contrib/function-auto-ready:v0.3.0
+  packagePullPolicy: IfNotPresent
+  revisionActivationPolicy: Automatic
+  revisionHistoryLimit: 5
+  runtimeConfigRef:
+    apiVersion: pkg.crossplane.io/v1beta1
+    kind: DeploymentRuntimeConfig
+    name: default
+  skipDependencyResolution: false

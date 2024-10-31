@@ -1,0 +1,14 @@
+cert-manager:
+  crds:
+    enabled: true
+    keep: true
+  replicaCount: 1
+  enableCertificateOwnerRef: true
+  prometheus:
+    enabled: true
+    servicemonitor:
+      enabled: false #todo enable after deployment of monitoring stack
+  webhook:
+    replicaCount: 1
+  cainjector:
+    replicaCount: 1

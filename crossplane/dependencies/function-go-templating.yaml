@@ -1,0 +1,15 @@
+apiVersion: pkg.crossplane.io/v1beta1
+kind: Function
+metadata:
+  name: crossplane-contrib-function-go-templating
+spec:
+  ignoreCrossplaneConstraints: false
+  package: xpkg.upbound.io/crossplane-contrib/function-go-templating:v0.8.0@sha256:ca77dfff64bf6a7d1aff8f67a3843a2977c3e3f26f719b71a7a5cf88371e01ba
+  packagePullPolicy: IfNotPresent
+  revisionActivationPolicy: Automatic
+  revisionHistoryLimit: 5
+  runtimeConfigRef:
+    apiVersion: pkg.crossplane.io/v1beta1
+    kind: DeploymentRuntimeConfig
+    name: default
+  skipDependencyResolution: false

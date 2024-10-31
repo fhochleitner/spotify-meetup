@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jukebox-cluster
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/fhochleitner/spotify-meetup
+    targetRevision: HEAD
+    path: argocd/mgmt-cluster/clusters/jukebox
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: spotify
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - Validate=false
+      - SkipDryRunOnMissingResource=true
+    automated:
+      selfHeal: true
+      prune: true
+      allowEmpty: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cncf-cluster
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/fhochleitner/spotify-meetup
+    targetRevision: HEAD
+    path: argocd/mgmt-cluster/clusters/additional
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: spotify
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - Validate=false
+      - SkipDryRunOnMissingResource=true
+    automated:
+      selfHeal: true
+      prune: true
+      allowEmpty: true

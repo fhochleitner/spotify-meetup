@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx-ingress-controller
+  namespace: gitops-argocd
+spec:
+  destination:
+    namespace: nginx-ingress-controller
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    path: argocd/workload/demo/jukebox/clusterconfig/nginx-ingress-controller
+    repoURL: https://github.com/fhochleitner/spotify-meetup.git
+    targetRevision: HEAD
+  syncPolicy:
+    automated:
+      allowEmpty: true
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - Validate=false
+      - SkipDryRunOnMissingResource
+      - ServerSideApply=true

@@ -1,0 +1,261 @@
+kind: Composition
+apiVersion: apiextensions.crossplane.io/v1
+metadata:
+  name: xclusterdnss.aws.squer.meetup.com
+  labels:
+    provider: aws
+  annotations:
+    crossplane.io/composition-resource-name: xclusterdnss.aws.squer.meetup.com
+spec:
+  compositeTypeRef:
+    apiVersion: aws.squer.meetup.com/v1alpha1
+    kind: XClusterDNS
+  mode: Pipeline
+  pipeline:
+    - step: render-go-templates
+      functionRef:
+        name: crossplane-contrib-function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: |
+            {{ $params := .observed.composite.resource.spec.parameters }}
+            # LoadBalancer Service to get AWS loadbalancer IP for DNS Record
+            apiVersion: kubernetes.crossplane.io/v1alpha2
+            kind: Object
+            metadata: 
+              annotations: 
+                crossplane.io/external-name: {{ $params.ingressController.serviceName }}
+                {{ setResourceNameAnnotation ("loadbalancerservice") }}
+              labels: 
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+            spec:
+              providerConfigRef: 
+                name: {{ $params.providerConfigs.inCluster }}
+              managementPolicies: ["Observe"]
+              forProvider: 
+                manifest: 
+                  apiVersion: v1
+                  kind: Service
+                  metadata: 
+                    name: {{ $params.ingressController.serviceName }}
+                    namespace: {{ $params.ingressController.namespace }}
+            ---
+            apiVersion: route53.aws.upbound.io/v1beta1
+            kind: Zone
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation ("clusterDNSZone") }}
+              labels: 
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                dns.aws.squer.meetup.com/zone: {{ $params.id }}.{{ $params.baseDomain }}
+            spec:
+              providerConfigRef:
+                  name: {{ $params.providerConfigs.default }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+              forProvider:
+                name: {{ $params.id }}.{{ $params.baseDomain }}
+                region: {{ $params.region }}
+            ---
+            # Create DNS delegation record in the root domain
+            {{- $nameservers := dig "resources" "clusterDNSZone" "resource" "status" "atProvider" "nameServers" "" $.observed  }}
+            {{- if ne true (empty $nameservers ) }}
+            apiVersion: route53.aws.upbound.io/v1beta1
+            kind: Record
+            metadata:
+              labels: 
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                dns.aws.squer.meetup.com/zone: {{ $params.baseDomain }}
+              annotations:
+                  {{ setResourceNameAnnotation ("rootDnsDelegationRecord") }}
+            spec:
+              providerConfigRef:
+                  name: {{ $params.providerConfigs.dnsRoot }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+              forProvider:
+                name: {{ $params.id }}.{{ $params.baseDomain }}
+                records:
+                  {{- range $ns := $nameservers }}
+                  - {{ $ns }}
+                  {{- end }}
+                region: {{ $params.region }}
+                type: NS
+                ttl: 900
+                zoneId: {{ $params.baseDomainHostedZoneId }}
+            ---
+            {{- end }}
+            # Create DNS record in the cluster domain
+            apiVersion: route53.aws.upbound.io/v1beta1
+            kind: Record
+            metadata:
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                  {{ setResourceNameAnnotation ("loadbalancerdelegationrecord") }}
+            spec:
+              providerConfigRef:
+                  name: {{ $params.providerConfigs.default }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+              forProvider:
+                name: "*.{{ $params.id }}.{{ $params.baseDomain }}"
+                region: {{ $params.region }}
+                type: "A"
+                alias:
+                - evaluateTargetHealth: true
+                  zoneId: Z2IFOLAFXWLO4F #(see https://docs.aws.amazon.com/general/latest/gr/elb.html)
+                  name: {{ $.observed.composite.resource.status.loadbalancerHostname }}
+                zoneIdSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    dns.aws.squer.meetup.com/zone: {{ $params.id }}.{{ $params.baseDomain }}
+            ---
+            ## Permissions for cert-manager
+            apiVersion: iam.aws.upbound.io/v1beta1
+            kind: Role
+            metadata:
+              name: {{ $params.id }}-cert-manager-role
+              annotations:
+                {{ setResourceNameAnnotation ("cert-manager-role") }}
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                role: cert-manager
+            spec:
+              providerConfigRef:
+                name: {{ $params.providerConfigs.default }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+              forProvider:
+                tags:
+                  clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                  clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                  clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                  name: {{ $params.id }}-cert-manager-role
+                managedPolicyArns: 
+                - arn:aws:iam::aws:policy/AmazonRoute53FullAccess
+                assumeRolePolicy: |
+                  {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                      {
+                        "Effect": "Allow",
+                        "Principal": {
+                          "Service": "pods.eks.amazonaws.com"
+                        },
+                        "Action": [
+                          "sts:AssumeRole",
+                          "sts:TagSession"
+                        ]
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Principal": {
+                          "AWS": "*"
+                        },
+                        "Action": [
+                          "sts:AssumeRole",
+                          "sts:TagSession"
+                        ],
+                        "Condition": {
+                          "StringEquals": {
+                            "aws:PrincipalArn": "arn:aws:iam::{{ $params.accountID }}:role/{{ $params.id }}-cert-manager-role"
+                          }
+                        }
+                      }
+                    ]
+                  }
+            ---
+            apiVersion: eks.aws.upbound.io/v1beta1
+            kind: PodIdentityAssociation
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation ("cert-manager-pod-identity-association") }}
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+            spec: 
+              providerConfigRef:
+                name: {{ $params.providerConfigs.default }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+              forProvider: 
+                region: {{ $params.region }}
+                clusterName: {{ $params.id }}
+                namespace: {{ $params.clusterIssuer.namespace }}
+                serviceAccount: {{ $params.clusterIssuer.serviceAccount }}
+                roleArnSelector:
+                  matchLabels:
+                    role: cert-manager
+                  matchControllerRef: true
+            ---
+            apiVersion: kubernetes.crossplane.io/v1alpha2
+            kind: Object
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation ("cert-manager-cluster-issuer") }}
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+            spec: 
+              providerConfigRef:
+                name: {{ $params.providerConfigs.inCluster }}
+              deletionPolicy: Delete
+              forProvider:
+                manifest:
+                  apiVersion: cert-manager.io/v1
+                  kind: ClusterIssuer
+                  metadata:
+                    name: letsencrypt
+                  spec:
+                    acme:
+                      email: {{ $params.id }}-platform@squer.com
+                      server: https://acme-v02.api.letsencrypt.org/directory
+                      privateKeySecretRef:
+                        name: letsencrypt
+                      solvers:
+                      - dns01:
+                          route53:
+                            region: {{ $params.region }}
+                            hostedZoneID:  {{ $.observed.composite.resource.status.hostedZoneID }}
+                            role: arn:aws:iam::{{ $.observed.composite.resource.spec.parameters.accountID }}:role/{{ $params.id }}-cert-manager-role
+                        selector:  
+                          dnsZones:
+                          - {{ $params.id }}.{{ $params.baseDomain }}
+    - step: patch-and-transform
+      functionRef:
+        name: crossplane-contrib-function-patch-and-transform
+      input:
+        apiVersion: pt.fn.crossplane.io/v1beta1
+        kind: Resources
+        resources:
+          # Only use patch-and-transform for resources that patch the status of the composite resource.
+          - name: loadbalancerservice
+            patches:
+              - fromFieldPath: status.atProvider.manifest.status.loadBalancer.ingress[0].hostname
+                policy:
+                  fromFieldPath: Optional
+                toFieldPath: status.loadbalancerHostname
+                type: ToCompositeFieldPath
+          - name: clusterDNSZone
+            patches:
+              - fromFieldPath: status.atProvider.id
+                policy:
+                  fromFieldPath: Optional
+                toFieldPath: status.hostedZoneID
+                type: ToCompositeFieldPath
+
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: crossplane-contrib-function-auto-ready
+  writeConnectionSecretsToNamespace: crossplane-system

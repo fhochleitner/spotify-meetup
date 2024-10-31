@@ -1,0 +1,3 @@
+module playlists
+
+go 1.22

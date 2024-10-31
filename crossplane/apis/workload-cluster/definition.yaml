@@ -1,0 +1,208 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xclusters.aws.squer.meetup.com
+spec:
+  defaultCompositionRef:
+    name: xclusters.aws.squer.meetup.com
+  connectionSecretKeys:
+    - kubeconfig
+  group: aws.squer.meetup.com
+  names:
+    kind: XCluster
+    plural: xclusters
+  claimNames:
+    kind: Cluster
+    plural: clusters
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                parameters:
+                  type: object
+                  description: EKS configuration parameters.
+                  properties:
+                    id:
+                      type: string
+                      description: ID of this Cluster that other objects will use to refer to it.
+                    type:
+                      type: string
+                      description: Type of the Cluster
+                      default: workload
+                    stage:
+                      type: string
+                      description: Stage of the cluster
+                      default: dev
+                    region:
+                      type: string
+                      description: Region is the region you'd like your resource to be created in.
+                      default: eu-central-1
+                    cluster:
+                      type: object
+                      description: EKS Cluster configuration
+                      properties:
+                        version:
+                          type: string
+                          description: Kubernetes version to use for the EKS Cluster
+                          default: "1.31"
+                        nodeType:
+                          type: string
+                          description: EC2 instance type to use for the EKS Cluster nodes
+                          default: "t3.large"
+                        nodeCount:
+                          type: integer
+                          description: Number of permanent nodes to create in the EKS Cluster
+                          default: 4
+                        minNodeCount:
+                          type: integer
+                          description: Minimum number of permanent nodes to create in the EKS Cluster
+                          default: 3
+                        maxNodeCount:
+                          type: integer
+                          description: Maximum number of permanent nodes to create in the EKS Cluster
+                          default: 10
+                        nodeDiskSize:
+                          type: integer
+                          description: Size of the EBS volume to attach to the EKS Cluster nodes
+                          default: 256
+                        addons:
+                          type: array
+                          description: List of EKS Cluster addons to install
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                                description: Name of the EKS Cluster addon to install
+                          default:
+                            - name: vpc-cni
+                            - name: kube-proxy
+                            - name: coredns
+                            - name: eks-pod-identity-agent
+                            - name: snapshot-controller
+                            - name: aws-ebs-csi-driver
+                            - name: aws-efs-csi-driver
+                        argocd:
+                          type: object
+                          description: Configuration for the initial ArgoCD installation. will be overwritten and managed by ArgoCD root application afterwards.
+                          properties:
+                            enabled:
+                              type: boolean
+                              description: Enable ArgoCD initial deployment
+                              default: true
+                            version:
+                              type: string
+                              description: ArgoCD version
+                              default: "7.3.8"
+                            repository:
+                              type: string
+                              description: ArgoCD helm chart
+                              default: "https://argoproj.github.io/argo-helm"
+                            namespace:
+                              type: string
+                              description: ArgoCD namespace
+                              default: "gitops-argocd"
+                            configRepoUrl:
+                              type: string
+                              description: ArgoCD configuration repository URL
+                              default: "https://github.com/fhochleitner/spotify-meetup.git"
+                          default:
+                            enabled: true
+                            version: "7.3.8"
+                            repository: "https://github.com/fhochleitner/spotify-meetup.git"
+                            namespace: "gitops-argocd"
+                    iam:
+                      type: object
+                      description: IAM configuration to connect as ClusterAdmin.
+                      properties:
+                        roleArn:
+                          description: The IAM Role ARN to connect as ClusterAdmin.
+                          type: string
+                          default: ${data.aws_eks_iam_default_admin}
+                        userArn:
+                          description: The IAM User ARN to connect as ClusterAdmin.
+                          type: string
+                          default: ${data.aws_eks_iam_default_admin}
+                        autoscalerArn:
+                          description: The AutoScaler Role ARN to connect as ClusterAdmin.
+                          type: string
+                          default: ${data.aws_eks_iam_default_admin}
+                        accessEntries:
+                          type: array
+                          description: List of IAM Access Entries to create
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                                description: Name of the IAM Access Entry to create
+                              policy:
+                                type: string
+                                description: Policy of the IAM Access Entry to create
+                              role:
+                                type: string
+                                description: List of IAM Roles to attach the IAM Access Entry to
+                                items:
+                                  type: string
+                              scope:
+                                type: object
+                                description: Scope of the IAM Access Entry to create
+                                properties:
+                                  type:
+                                    type: string
+                                    description: Type of the IAM Access Entry to create
+                                    default: "cluster"
+                                    enum:
+                                      - cluster
+                                      - namespace
+                                  namespaces:
+                                    type: array
+                                    description: List of namespaces to attach the IAM Access Entry to
+                                    items:
+                                      type: string
+                    deletionPolicy:
+                      description: Delete the external resources when the Claim/XR is deleted. Defaults to Delete
+                      enum:
+                        - Delete
+                        - Orphan
+                      type: string
+                      default: Delete
+                    providerConfigName:
+                      description: Crossplane ProviderConfig to use for provisioning this resources
+                      type: string
+                      default: default
+            status:
+              description: A Status represents the observed environments
+              properties:
+                eks:
+                  description: Freeform field containing status information for eks
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                vpcId:
+                  type: string
+                subnetIds:
+                  type: array
+                  items:
+                    type: string
+                privateSubnetIds:
+                  type: array
+                  items:
+                    type: string
+                securityGroupIds:
+                  type: array
+                  items:
+                    type: string
+                publicSubnetIds:
+                  type: array
+                  items:
+                    type: string
+                nodeGroupStatus:
+                  type: string
+              type: object

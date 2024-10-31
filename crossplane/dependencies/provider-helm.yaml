@@ -1,0 +1,15 @@
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: crossplane-contrib-provider-helm
+spec:
+  ignoreCrossplaneConstraints: false
+  package: xpkg.upbound.io/crossplane-contrib/provider-helm:v0.19.0
+  packagePullPolicy: IfNotPresent
+  revisionActivationPolicy: Automatic
+  revisionHistoryLimit: 5
+  runtimeConfigRef:
+    apiVersion: pkg.crossplane.io/v1beta1
+    kind: DeploymentRuntimeConfig
+    name: default
+  skipDependencyResolution: false

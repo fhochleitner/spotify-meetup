@@ -1,0 +1,15 @@
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: upbound-provider-aws-iam
+spec:
+  ignoreCrossplaneConstraints: false
+  package: xpkg.upbound.io/upbound/provider-aws-iam:v1.16.0@sha256:3ed73f42de19c68d746d437ef7d407d7741ea83b06a00fb9e8bd6f9a9167fd47
+  packagePullPolicy: IfNotPresent
+  revisionActivationPolicy: Automatic
+  revisionHistoryLimit: 5
+  runtimeConfigRef:
+    apiVersion: pkg.crossplane.io/v1beta1
+    kind: DeploymentRuntimeConfig
+    name: default
+  skipDependencyResolution: false

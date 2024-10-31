@@ -1,0 +1,1477 @@
+kind: Composition
+apiVersion: apiextensions.crossplane.io/v1
+metadata:
+  name: xclusters.aws.squer.meetup.com
+  labels:
+    provider: aws
+  annotations:
+    crossplane.io/composition-resource-name: xclusters.aws.squer.meetup.com
+spec:
+  compositeTypeRef:
+    apiVersion: aws.squer.meetup.com/v1alpha1
+    kind: XCluster
+  mode: Pipeline
+  pipeline:
+    - step: enable-environment-configuration
+      functionRef:
+        name: crossplane-contrib-function-environment-configs
+      input:
+        apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          environmentConfigs:
+            - type: Selector
+              selector:
+                mode: Multiple
+                maxMatch: 1
+                minMatch: 0
+                matchLabels:
+                  - key: clusters.aws.squer.meetup.com/cluster
+                    type: FromCompositeFieldPath
+                    valueFromFieldPath: spec.parameters.id
+    - step: render-go-templates
+      functionRef:
+        name: crossplane-contrib-function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: |
+            {{ $params := .observed.composite.resource.spec.parameters }}
+            apiVersion: apiextensions.crossplane.io/v1alpha1
+            kind: EnvironmentConfig
+            metadata:
+              name: environment-{{ $params.id }}
+              labels: 
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("environmentconfig") }}
+            data: 
+              oidc_arn: {{ .observed.composite.resource.status.eks.oidcArn }}
+              oidc_host: {{ .observed.composite.resource.status.eks.oidcUri }}
+              oidc: {{ .observed.composite.resource.status.eks.oidc }}
+              accountId: {{ .observed.composite.resource.status.eks.accountId }}
+            ---
+            apiVersion: iam.aws.upbound.io/v1beta1
+            kind: Role
+            metadata:
+              labels:
+                role: controlplane
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation (printf "cp-sts-%s" $params.id) }}
+                crossplane.io/external-name: {{ .observed.composite.resource.metadata.name }}-controlplane
+            spec:
+              forProvider:
+                tags:
+                  Name: {{ .observed.composite.resource.metadata.name }}-controlplane
+                assumeRolePolicy: |
+                  {
+                      "Version": "2012-10-17",
+                      "Statement": [
+                          {
+                              "Effect": "Allow",
+                              "Principal": {
+                                  "Service": [
+                                      "eks.amazonaws.com"
+                                  ]
+                              },
+                              "Action": [
+                                  "sts:AssumeRole"
+                              ]
+                          }
+                      ]
+                  }
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+            ---
+            apiVersion: iam.aws.upbound.io/v1beta1
+            kind: RolePolicyAttachment
+            metadata:
+              labels:
+                role: controlplane
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation (printf "rpa-policy-%s" $params.id) }}
+            spec:
+              forProvider:
+                policyArn: arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+                roleSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    role: controlplane
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+            ---
+            apiVersion: iam.aws.upbound.io/v1beta1
+            kind: RolePolicyAttachment
+            metadata:
+              labels:
+                role: controlplane
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation (printf "rpa-vpc-policy-%s" $params.id) }}
+            spec:
+              forProvider:
+                policyArn: "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
+                roleSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    role: controlplane
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+            ---
+            {{- if eq (dig "resources" "eks-cluster" "resource" "status" "atProvider" "status" " " $.observed) "ACTIVE" }}
+            {{- range $i, $addon := $params.cluster.addons }}
+            apiVersion: eks.aws.upbound.io/v1beta1
+            kind: Addon
+            metadata:
+              name: addon-{{ $params.id }}-{{ $addon.name }}
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                  {{ setResourceNameAnnotation (printf "addon-%s-%s" $params.id $addon.name) }}
+            spec:
+                forProvider:
+                  addonName: {{ $addon.name }}
+                  clusterNameSelector:
+                    matchControllerRef: true
+                  region: {{ $params.region }}
+                providerConfigRef:
+                    name: {{ $params.providerConfigName }}
+                deletionPolicy: {{ $params.deletionPolicy }}
+            ---
+            {{- end }}
+            {{- end }}
+            apiVersion: eks.aws.upbound.io/v1beta1
+            kind: ClusterAuth
+            metadata:
+              name: {{ .observed.composite.resource.metadata.name }}-auth
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation (printf "cluster-auth-%s" $params.id) }}
+            spec:
+              forProvider:
+                clusterNameSelector:
+                  matchControllerRef: true
+                region: {{ $params.region }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+              writeConnectionSecretToRef:
+                namespace: {{ .observed.composite.resource.spec.writeConnectionSecretToRef.namespace | default "crossplane-system" }}
+                name: {{ $params.id }}-kubeconfig
+            ---
+            apiVersion: eks.aws.upbound.io/v1beta1
+            kind: Cluster
+            metadata:
+              name: {{ $params.id }}
+              annotations:
+                {{ setResourceNameAnnotation ("eks-cluster") }}
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+            spec:
+              forProvider:
+                version: "{{ $params.cluster.version }}"
+                bootstrapSelfManagedAddons: false
+                accessConfig:
+                - authenticationMode: API_AND_CONFIG_MAP
+                  bootstrapClusterCreatorAdminPermissions: true
+                roleArnSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    role: controlplane
+                enabledClusterLogTypes: [] #todo add variables for log types
+                vpcConfig:
+                  - endpointPrivateAccess: true
+                    endpointPublicAccess: true
+                    securityGroupIdSelector:
+                      matchControllerRef: true
+                      matchLabels:
+                        clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                        type: node
+                    subnetIdSelector:
+                      matchLabels: 
+                        networks.aws.squer.meetup.com/network-id: {{ $params.id }}
+                tags:
+                  Name: {{ $params.id }}
+                region: {{ $params.region }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+            ---
+            apiVersion: iam.aws.upbound.io/v1beta1
+            kind: OpenIDConnectProvider
+            metadata:
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("oidc-provider") }}
+            spec: 
+              forProvider:
+                clientIdList:
+                - sts.amazonaws.com
+                thumbprintList:
+                - 9e99a48a9960b14926bb7f3b02e22da2b0ab7280
+                url: {{ .observed.composite.resource.status.eks.oidc }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+            ---
+            apiVersion: iam.aws.upbound.io/v1beta1
+            kind: Role
+            metadata:
+              labels:
+                role: nodegroup
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("nodegroup-role") }}
+                crossplane.io/external-name: {{ .observed.composite.resource.metadata.name }}-nodegroup
+            spec:
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              forProvider:
+                assumeRolePolicy: |
+                  {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "ec2.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                  }
+            ---
+            apiVersion: iam.aws.upbound.io/v1beta1
+            kind: RolePolicyAttachment
+            metadata:
+              labels:
+                role: nodegroup
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("worker-node-rpa") }}
+            spec:
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              forProvider:
+                policyArn: arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+                roleSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    role: nodegroup
+            ---
+            apiVersion: iam.aws.upbound.io/v1beta1
+            kind: RolePolicyAttachment
+            metadata:
+              labels:
+                role: nodegroup
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("worker-cni-rpa") }}
+            spec:
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              forProvider:
+                policyArn: arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+                roleSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    role: nodegroup
+            ---
+            apiVersion: iam.aws.upbound.io/v1beta1
+            kind: RolePolicyAttachment
+            metadata:
+              labels:
+                role: nodegroup
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("worker-ebs-rpa") }}
+            spec:
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              forProvider:
+                policyArn: arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+                roleSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    role: nodegroup
+            ---
+            apiVersion: iam.aws.upbound.io/v1beta1
+            kind: RolePolicyAttachment
+            metadata:
+              labels:
+                role: nodegroup
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("worker-efs-rpa") }}
+            spec:
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              forProvider:
+                policyArn: arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy
+                roleSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    role: nodegroup
+            ---            
+            apiVersion: iam.aws.upbound.io/v1beta1
+            kind: RolePolicyAttachment
+            metadata:
+              labels:
+                role: nodegroup
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("worker-ecr-rpa") }}
+            spec:
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              forProvider:
+                policyArn: arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+                roleSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    role: nodegroup
+            ---
+            {{- if eq (dig "resources" "eks-cluster" "resource" "status" "atProvider" "status" " " $.observed) "ACTIVE" }}
+            apiVersion: eks.aws.upbound.io/v1beta1
+            kind: NodeGroup
+            metadata:
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("nodegroup-private") }}
+            spec:
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              forProvider:
+                region: {{ $params.region }}
+                tags:
+                  Name: {{ $params.id }}-nodegroup-private
+                capacityType: ON_DEMAND
+                diskSize: {{ $params.cluster.nodeDiskSize }}
+                clusterNameSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                instanceTypes:
+                  - {{ $params.cluster.nodeType }}
+                nodeRoleArnSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    role: nodegroup
+                scalingConfig:
+                  - desiredSize: {{ $params.cluster.nodeCount }}
+                    minSize: {{ $params.cluster.minNodeCount }}
+                    maxSize: {{ $params.cluster.maxNodeCount }}
+                subnetIdSelector:
+                  matchLabels:
+                    access: private
+                    networks.aws.squer.meetup.com/network-id: {{ $params.id }}
+            ---
+            {{- end }}
+            apiVersion: kubernetes.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              name: {{ $params.id }}-aws-auth
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("aws-auth") }}
+            spec: 
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: ConfigMap
+                  metadata:
+                    name: aws-auth
+                    namespace: kube-system
+                  data: 
+                    mapRoles: |
+                      - groups:
+                        - system:bootstrappers
+                        - system:nodes
+                        rolearn: {{ .observed.composite.resource.status.eks.nodeGroupRoleArn }}
+                        username: system:node:{{`{{EC2PrivateDNSName}}`}}
+                      - groups:
+                        - system:bootstrappers
+                        - system:nodes
+                        rolearn: {{ $params.iam.autoscalerArn }}
+                        username: system:node:{{`{{EC2PrivateDNSName}}`}}
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                name: provider-k8s-{{ $params.id }}
+            ---
+            apiVersion: kubernetes.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("gp3-storageclass") }}
+            spec: 
+              forProvider:
+                manifest:
+                  apiVersion: storage.k8s.io/v1
+                  kind: StorageClass
+                  metadata:
+                    name: gp3
+                    labels:
+                      clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                      clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                      clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                    annotations:
+                      storageclass.kubernetes.io/is-default-class: "true"
+                  parameters:
+                    encrypted: "true"
+                    type: "gp3"
+                  reclaimPolicy: "Delete"
+                  volumeBindingMode: "WaitForFirstConsumer" 
+                  provisioner: "kubernetes.io/aws-ebs"
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                name: provider-k8s-{{ $params.id }}
+            ---
+            apiVersion: kubernetes.crossplane.io/v1alpha1
+            kind: Object
+            metadata:
+              name: {{ $params.id }}-irsa-settings
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("irsa-settings") }}
+            spec: 
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                name: provider-k8s-{{ $params.id }}
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: ConfigMap
+                  metadata:
+                    name: {{ $params.id }}-irsa-settings
+                    namespace: default
+                  data:
+                    oidc_arn: {{ .observed.composite.resource.status.eks.oidcArn }}
+                    oidc_host: {{ .observed.composite.resource.status.eks.oidcUri }}
+            --- 
+            {{- range $entry := $params.iam.accessEntries }}
+            apiVersion: eks.aws.upbound.io/v1beta1
+            kind: AccessEntry
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (printf "access-entry-%s" $entry.name) }}
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                access-entry: {{ $entry.name }}
+            spec:
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              forProvider:
+                clusterNameSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                principalArn: {{ $entry.role }}
+                region: {{ $params.region }}
+                type: STANDARD
+            ---
+            apiVersion: eks.aws.upbound.io/v1beta1
+            kind: AccessPolicyAssociation
+            metadata:
+              annotations:
+                {{ setResourceNameAnnotation (printf "access-policy-%s" $entry.name) }}
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+            spec: 
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                  name: {{ $params.providerConfigName }}
+              forProvider:
+                accessScope: 
+                  type: {{ $entry.scope.type | default "cluster" }}
+                  {{- if $entry.scope.namespaces }}
+                  namespaces:
+                    {{- range $namespace := $entry.namespaces }}
+                    - {{ $namespace }}
+                    {{- end }}
+                  {{- end }}
+                policyArn: {{ $entry.policy }}
+                clusterNameSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                region: {{ $params.region }}
+                principalArnSelector:
+                  matchControllerRef: true
+                  matchLabels:
+                    access-entry: {{ $entry.name }}
+            ---
+            {{- end }}
+            # Permissions for EKS cluster to create Persistent Volumes (PVs)
+            apiVersion: iam.aws.upbound.io/v1beta1
+            kind: Role
+            metadata:
+              labels:
+                role: eks-pv-creator
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation (printf "ebs-sts-%s" $params.id) }}
+                crossplane.io/external-name: {{ .observed.composite.resource.metadata.name }}-ebs-csi
+            spec:
+              forProvider:
+                tags:
+                  Name: {{ .observed.composite.resource.metadata.name }}-ebs-csi
+                managedPolicyArns: 
+                - "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+                assumeRolePolicy: |
+                  {
+                    "Version" : "2012-10-17",
+                    "Statement" : [
+                      {
+                        "Effect" : "Allow",
+                        "Principal" : {
+                          "Service" : "pods.eks.amazonaws.com"
+                        },
+                        "Action" : [
+                          "sts:TagSession",
+                          "sts:AssumeRole"
+                        ]
+                      },
+                      {
+                        "Effect" : "Allow",
+                        "Principal" : {
+                          "Federated" : "{{ .observed.composite.resource.status.eks.oidcArn }}"
+                        },
+                        "Action" : "sts:AssumeRoleWithWebIdentity",
+                        "Condition" : {
+                          "StringEquals" : {
+                            "{{ .observed.composite.resource.status.eks.oidcUri }}:aud" : "sts.amazonaws.com",
+                            "{{ .observed.composite.resource.status.eks.oidcUri }}:sub" : [
+                              "system:serviceaccount:kube-system:ebs-csi-controller-sa"
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  }
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+            ---
+            apiVersion: kubernetes.crossplane.io/v1alpha2
+            kind: Object
+            metadata:
+              name: {{ $params.id }}-ebs-csi-sa
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("ebs-csi-sa") }}
+                crossplane.io/external-name: "system:serviceaccount:kube-system:ebs-csi-controller-sa"
+            spec: 
+              managementPolicies: ["*"]
+              providerConfigRef:
+                  name: provider-k8s-{{ $params.id }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: ServiceAccount
+                  metadata:
+                      name: ebs-csi-controller-sa
+                      namespace: kube-system
+                      annotations:
+                        eks.amazonaws.com/role-arn: arn:aws:iam::{{ .observed.composite.resource.status.eks.accountId }}:role/{{ .observed.composite.resource.metadata.name }}-ebs-csi
+                  spec: {}
+            ---
+            apiVersion: kubernetes.crossplane.io/v1alpha2
+            kind: Object
+            metadata:
+              name: {{ $params.id }}-efs-csi-sa
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("efs-csi-sa") }}
+                crossplane.io/external-name: "system:serviceaccount:kube-system:efs-csi-controller-sa"
+            spec: 
+              managementPolicies: ["*"]
+              providerConfigRef:
+                  name: provider-k8s-{{ $params.id }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: ServiceAccount
+                  metadata:
+                      name: efs-csi-controller-sa
+                      namespace: kube-system
+                      annotations:
+                        eks.amazonaws.com/role-arn: arn:aws:iam::{{ .observed.composite.resource.status.eks.accountId }}:role/{{ .observed.composite.resource.metadata.name }}-efs-csi
+                  spec: {}            
+            ---
+            apiVersion: iam.aws.upbound.io/v1beta1
+            kind: Role
+            metadata:
+              labels:
+                role: eks-pv-creator
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation (printf "efs-sts-%s" $params.id) }}
+                crossplane.io/external-name: {{ .observed.composite.resource.metadata.name }}-efs-csi
+            spec:
+              forProvider:
+                tags:
+                  Name: {{ .observed.composite.resource.metadata.name }}-efs-csi
+                managedPolicyArns:
+                - "arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy"
+                assumeRolePolicy: |
+                  {
+                    "Version" : "2012-10-17",
+                    "Statement" : [
+                      {
+                        "Effect" : "Allow",
+                        "Principal" : {
+                          "Service" : "pods.eks.amazonaws.com"
+                        },
+                        "Action" : [
+                          "sts:TagSession",
+                          "sts:AssumeRole"
+                        ]
+                      },
+                      {
+                        "Effect" : "Allow",
+                        "Principal" : {
+                          "Federated" : "{{ .observed.composite.resource.status.eks.oidcArn }}"
+                        },
+                        "Action" : "sts:AssumeRoleWithWebIdentity",
+                        "Condition" : {
+                          "StringEquals" : {
+                            "{{ .observed.composite.resource.status.eks.oidcUri }}:aud" : "sts.amazonaws.com",
+                            "{{ .observed.composite.resource.status.eks.oidcUri }}:sub" : [
+                              "system:serviceaccount:kube-system:efs-csi-controller-sa"
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  }
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+            ---
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: SecurityGroup
+            metadata: 
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                type: node
+              annotations:
+                {{ setResourceNameAnnotation (printf "node-sg-%s" $params.id) }}
+            spec: 
+              forProvider: 
+                region: {{ $params.region }}
+                vpcIdSelector: 
+                  matchLabels: 
+                    networks.aws.squer.meetup.com/network-id: {{ $params.id }}
+                tags: 
+                  Name: {{ $params.id }}-node-sg
+                description: EKS node shared security group
+              providerConfigRef: 
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+            ---
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: SecurityGroupRule
+            metadata: 
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                type: node
+              annotations:
+                {{ setResourceNameAnnotation (printf "%s-sg-rule-9443" $params.id) }}
+            spec: 
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef: 
+                name: {{ $params.providerConfigName }}
+              forProvider: 
+                description: "Cluster API to node 9443/tcp webhook"
+                securityGroupIdSelector: 
+                  matchLabels: 
+                    type: cluster
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                protocol: tcp
+                region: {{ $params.region }}
+                type: ingress
+                sourceSecurityGroupIdSelector: 
+                  matchLabels: 
+                    type: cluster
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                fromPort: 9443
+                toPort: 9443
+            ---
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: SecurityGroupRule
+            metadata: 
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                type: node
+              annotations:
+                {{ setResourceNameAnnotation (printf "%s-sg-rule-internal" $params.id) }}
+            spec: 
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef: 
+                name: {{ $params.providerConfigName }}
+              forProvider: 
+                description: "Allow all communication between nodes"
+                securityGroupIdSelector: 
+                  matchLabels: 
+                    type: node
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                protocol: all
+                region: {{ $params.region }}
+                type: ingress
+                self: true
+                fromPort: -1
+                toPort: -1
+            ---
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: SecurityGroupRule
+            metadata: 
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                type: node
+              annotations:
+                {{ setResourceNameAnnotation (printf "%s-sg-rule-8443" $params.id) }}
+            spec: 
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef: 
+                name: {{ $params.providerConfigName }}
+              forProvider: 
+                description: "Cluster API to node 8443/tcp webhook"
+                securityGroupIdSelector: 
+                  matchLabels: 
+                    type: node
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                protocol: tcp
+                region: {{ $params.region }}
+                type: ingress
+                sourceSecurityGroupIdSelector: 
+                  matchLabels: 
+                    type: cluster
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                fromPort: 8443
+                toPort: 8443            
+            ---
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: SecurityGroupRule
+            metadata: 
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                type: node
+              annotations:
+                {{ setResourceNameAnnotation (printf "%s-sg-rule-4443" $params.id) }}
+            spec: 
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef: 
+                name: {{ $params.providerConfigName }}
+              forProvider: 
+                description: "Cluster API to node 4443/tcp webhook"
+                securityGroupIdSelector: 
+                  matchLabels: 
+                    type: node
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                protocol: tcp
+                region: {{ $params.region }}
+                type: ingress
+                sourceSecurityGroupIdSelector: 
+                  matchLabels: 
+                    type: cluster
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                fromPort: 4443
+                toPort: 4443             
+            ---
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: SecurityGroupRule
+            metadata: 
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                type: node
+              annotations:
+                {{ setResourceNameAnnotation (printf "%s-sg-rule-dns-udp" $params.id) }}
+            spec: 
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef: 
+                name: {{ $params.providerConfigName }}
+              forProvider: 
+                description: "Node to node CoreDNS UDP"
+                securityGroupIdSelector: 
+                  matchLabels: 
+                    type: node
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                protocol: udp
+                region: {{ $params.region }}
+                type: ingress
+                self: true
+                fromPort: 53
+                toPort: 53             
+            ---            
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: SecurityGroupRule
+            metadata: 
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                type: node
+              annotations:
+                {{ setResourceNameAnnotation (printf "%s-sg-rule-10250" $params.id) }}
+            spec: 
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef: 
+                name: {{ $params.providerConfigName }}
+              forProvider: 
+                description: "Cluster API to node kubelets"
+                securityGroupIdSelector: 
+                  matchLabels: 
+                    type: node
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                protocol: tcp
+                region: {{ $params.region }}
+                type: ingress
+                sourceSecurityGroupIdSelector: 
+                  matchLabels: 
+                    type: cluster
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                fromPort: 10250
+                toPort: 10250             
+            ---      
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: SecurityGroupRule
+            metadata: 
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                type: node
+              annotations:
+                {{ setResourceNameAnnotation (printf "%s-sg-rule-ephemeral-ports" $params.id) }}
+            spec: 
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef: 
+                name: {{ $params.providerConfigName }}
+              forProvider: 
+                description: "Node to node ingress on ephemeral ports"
+                securityGroupIdSelector: 
+                  matchLabels: 
+                    type: node
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                protocol: tcp
+                region: {{ $params.region }}
+                type: ingress
+                self: true
+                fromPort: 1025
+                toPort: 65535             
+            ---            
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: SecurityGroupRule
+            metadata: 
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                type: node
+              annotations:
+                {{ setResourceNameAnnotation (printf "%s-sg-rule-dns-tcp" $params.id) }}
+            spec: 
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef: 
+                name: {{ $params.providerConfigName }}
+              forProvider: 
+                description: "Node to node CoreDNS TCP"
+                securityGroupIdSelector: 
+                  matchLabels: 
+                    type: node
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                protocol: tcp
+                region: {{ $params.region }}
+                type: ingress
+                self: true
+                fromPort: 53
+                toPort: 53             
+            ---
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: SecurityGroupRule
+            metadata: 
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                type: node
+              annotations:
+                {{ setResourceNameAnnotation (printf "%s-sg-rule-6443" $params.id) }}
+            spec: 
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef: 
+                name: {{ $params.providerConfigName }}
+              forProvider: 
+                description: "Cluster API to node 6443/tcp webhook"
+                securityGroupIdSelector: 
+                  matchLabels: 
+                    type: node
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                protocol: tcp
+                region: {{ $params.region }}
+                type: ingress
+                sourceSecurityGroupIdSelector: 
+                  matchLabels: 
+                    type: cluster
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                fromPort: 6443
+                toPort: 6443             
+            ---            
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: SecurityGroupRule
+            metadata: 
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                type: node
+              annotations:
+                {{ setResourceNameAnnotation (printf "%s-sg-rule-443" $params.id) }}
+            spec: 
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef: 
+                name: {{ $params.providerConfigName }}
+              forProvider: 
+                description: "Cluster API to node 443/tcp webhook"
+                securityGroupIdSelector: 
+                  matchLabels: 
+                    type: node
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                protocol: tcp
+                region: {{ $params.region }}
+                type: ingress
+                sourceSecurityGroupIdSelector: 
+                  matchLabels: 
+                    type: cluster
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                fromPort: 443
+                toPort: 443             
+            ---
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: SecurityGroupRule
+            metadata: 
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                type: node
+              annotations:
+                {{ setResourceNameAnnotation (printf "%s-sg-rule-egress" $params.id) }}
+            spec: 
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef: 
+                name: {{ $params.providerConfigName }}
+              forProvider: 
+                description: "allow all egress traffic"
+                securityGroupIdSelector: 
+                  matchLabels: 
+                    type: node
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                protocol: all
+                region: {{ $params.region }}
+                type: egress
+                cidrBlocks: 
+                  - "0.0.0.0/0"
+                fromPort: -1
+                toPort: -1           
+            ---             
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: SecurityGroup
+            metadata: 
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                type: cluster
+              annotations:
+                {{ setResourceNameAnnotation (printf "cluster-sg-%s" $params.id) }}
+            spec: 
+              forProvider: 
+                region: {{ $params.region }}
+                vpcIdSelector: 
+                  matchLabels: 
+                    networks.aws.squer.meetup.com/network-id: {{ $params.id }}
+                tags: 
+                  Name: {{ $params.id }}-cluster-sg
+                  kubernetes.io/cluster/{{ $params.id }}: shared
+                description: EKS cluster security group
+              providerConfigRef: 
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+            ---
+            apiVersion: ec2.aws.upbound.io/v1beta1
+            kind: SecurityGroupRule
+            metadata: 
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                type: cluster
+              annotations:
+                {{ setResourceNameAnnotation (printf "%s-sg-rule-https" $params.id) }}
+            spec: 
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef: 
+                name: {{ $params.providerConfigName }}
+              forProvider: 
+                description: "Node groups to cluster API"
+                securityGroupIdSelector: 
+                  matchLabels: 
+                    type: cluster
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                protocol: tcp
+                region: {{ $params.region }}
+                type: ingress
+                sourceSecurityGroupIdSelector: 
+                  matchLabels: 
+                    type: node
+                    clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                fromPort: 443
+                toPort: 443
+            ---
+            apiVersion: kubernetes.crossplane.io/v1alpha1
+            kind: ProviderConfig
+            metadata:
+              name: provider-k8s-{{ $params.id }}
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("providerconfig-k8s") }}
+            spec:
+              credentials:
+                source: Secret
+                secretRef:
+                  key: kubeconfig
+                  name: {{ $params.id }}-kubeconfig
+                  namespace: crossplane-system
+            ---
+            apiVersion: helm.crossplane.io/v1alpha1
+            kind: ProviderConfig
+            metadata:
+              name: provider-helm-{{ $params.id }}
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("providerconfig-helm") }}
+            spec:
+              credentials:
+                source: Secret
+                secretRef:
+                  key: kubeconfig
+                  name: {{ $params.id }}-kubeconfig
+                  namespace: crossplane-system
+            ---
+            {{- if $params.cluster.argocd.enabled }}
+            apiVersion: kubernetes.crossplane.io/v1alpha2
+            kind: Object
+            metadata:
+              name: {{ $params.id }}-argocd-namespace
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("argocd-namespace") }}
+            spec:
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                  name: provider-k8s-{{ $params.id }}
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Namespace
+                  metadata:
+                    name: {{ $params.cluster.argocd.namespace }}
+            ---    
+            # Permissions for Workload Cluster Crossplane
+            apiVersion: iam.aws.upbound.io/v1beta1
+            kind: Role
+            metadata:
+              labels:
+                role: crossplane-permissions
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+                clusters.aws.squer.meetup.com/name: squer-cp-{{ $params.type }}-{{ $params.stage }}-crossplane-role
+              annotations:
+                {{ setResourceNameAnnotation (printf "crossplane-workload-%s" $params.id) }}
+                crossplane.io/external-name: squer-cp-{{ $params.id }}-crossplane-role
+              name: squer-cp-{{ $params.type }}-{{ $params.stage }}-crossplane-role
+            spec: 
+              providerConfigRef:
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+              forProvider: 
+                tags:
+                  Name: squer-cp-{{ $params.id }}-crossplane-role
+                assumeRolePolicy: |
+                  {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                      {
+                        "Effect": "Allow",
+                        "Principal": {
+                          "Federated": "arn:aws:iam::{{ .observed.composite.resource.status.eks.accountId }}:oidc-provider/{{ .observed.composite.resource.status.eks.oidcUri }}"
+                        },
+                        "Action": "sts:AssumeRoleWithWebIdentity",
+                        "Condition": {
+                          "StringEquals": {
+                            "{{ .observed.composite.resource.status.eks.oidcUri }}:sub": "system:serviceaccount:crossplane-system:provider-aws",
+                            "{{ .observed.composite.resource.status.eks.oidcUri }}:aud": "sts.amazonaws.com"
+                          }
+                        }
+                      }
+                    ]
+                  }
+            ---
+            apiVersion: iam.aws.upbound.io/v1beta1  
+            kind: Policy
+            metadata:
+              labels:
+                clusters.aws.squer.meetup.com/name: squer-{{$params.id}}-allowAssumeRolePolicy
+              annotations:
+                crossplane.io/external-name: squer-{{$params.id}}-allowAssumeRolePolicy
+                {{ setResourceNameAnnotation ("allowAssumeRolePolicy") }}
+            spec:
+              providerConfigRef: 
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+              forProvider:
+                policy: |
+                  {  
+                    "Version": "2012-10-17",  
+                    "Statement": [  
+                      {  
+                          "Sid": "AllowAssumeRoleAndTagSessionForAllRolesAndUsers",  
+                          "Effect": "Allow",  
+                          "Action": [  
+                              "sts:AssumeRole",  
+                              "sts:TagSession"  
+                          ],  
+                          "Resource": "*"  
+                      }  
+                    ]  
+                  }  
+            ---
+            apiVersion: iam.aws.upbound.io/v1beta1
+            kind: RolePolicyAttachment
+            metadata:
+              annotations:
+                crossplane.io/external-name: squer-{{$params.id}}-allowAssumeRolePolicyAttachment
+                {{ setResourceNameAnnotation ("allowAssumeRolePolicyAttachment") }}
+            spec:
+              providerConfigRef: 
+                name: {{ $params.providerConfigName }}
+              deletionPolicy: {{ $params.deletionPolicy }}
+              forProvider:
+                policyArnSelector:
+                  matchLabels:
+                    clusters.aws.squer.meetup.com/name: squer-{{$params.id}}-allowAssumeRolePolicy
+                roleSelector:
+                  matchLabels:
+                    clusters.aws.squer.meetup.com/name: squer-cp-{{ $params.type }}-{{ $params.stage }}-crossplane-role
+            ---
+            apiVersion: kubernetes.crossplane.io/v1alpha2
+            kind: Object
+            metadata:
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("crossplane-namespace") }}
+            spec: 
+              providerConfigRef:
+                  name: provider-k8s-{{ $params.id }}
+              deletionPolicy: Orphan
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: Namespace
+                  metadata:
+                    name: crossplane-system
+                  spec: {}
+            ---
+            apiVersion: kubernetes.crossplane.io/v1alpha2
+            kind: Object
+            metadata:
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("crossplane-serviceaccount") }}
+                crossplane.io/external-name: provider-aws
+            spec: 
+              managementPolicies: ["*"]
+              providerConfigRef:
+                  name: provider-k8s-{{ $params.id }}
+              deletionPolicy: Orphan
+              forProvider:
+                manifest:
+                  apiVersion: v1
+                  kind: ServiceAccount
+                  metadata:
+                    name: provider-aws
+                    namespace: crossplane-system
+                    annotations:
+                        eks.amazonaws.com/role-arn: arn:aws:iam::{{ .observed.composite.resource.status.eks.accountId }}:role/squer-cp-{{ $params.type }}-{{ $params.stage }}-crossplane-role
+                  spec: {}
+            ---
+             {{- if eq (dig "resources" "nodegroup-private" "resource" "status" "atProvider" "status" " " $.observed) "ACTIVE" }}
+            apiVersion: helm.crossplane.io/v1alpha1
+            kind: Release
+            metadata:
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("argocd") }}
+                crossplane.io/external-name: argocd
+            spec:
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                name: provider-helm-{{ $params.id }}
+              forProvider: 
+                chart: 
+                  name: argo-cd
+                  repository: oci://ghcr.io/argoproj/argo-helm/
+                  version: 7.6.12
+                namespace: {{ $params.cluster.argocd.namespace }}
+            ---
+            apiVersion: kubernetes.crossplane.io/v1alpha2
+            kind: Object
+            metadata:
+              name: {{ $params.id }}-argocd-default-project
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("argocd-default-project") }}
+            spec:
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                  name: provider-k8s-{{ $params.id }}
+              forProvider:
+                manifest:
+                  apiVersion: argoproj.io/v1alpha1
+                  kind: AppProject
+                  metadata:
+                    name: default
+                    namespace: {{ $params.cluster.argocd.namespace }}
+                  spec: 
+                    sourceRepos:
+                      - '*'
+                    destinations:
+                      - namespace: '*'
+                        server: '*'
+                    clusterResourceWhitelist:
+                      - group: '*'
+                        kind: '*'
+            ---
+            apiVersion: kubernetes.crossplane.io/v1alpha2
+            kind: Object
+            metadata:
+              name: {{ $params.id }}-argocd-root-app
+              labels:
+                clusters.aws.squer.meetup.com/cluster: {{ $params.id }}
+                clusters.aws.squer.meetup.com/type: {{ $params.type }}
+                clusters.aws.squer.meetup.com/stage: {{ $params.stage }}
+              annotations:
+                {{ setResourceNameAnnotation ("argocd-root-app") }}
+            spec:
+              deletionPolicy: {{ $params.deletionPolicy }}
+              providerConfigRef:
+                  name: provider-k8s-{{ $params.id }}
+              forProvider:
+                manifest:
+                  apiVersion: argoproj.io/v1alpha1
+                  kind: Application
+                  metadata:
+                    name: {{ $params.id }}-argocd-root-application
+                    namespace: {{ $params.cluster.argocd.namespace }}
+                  spec: 
+                    destination: 
+                        namespace: {{ $params.cluster.argocd.namespace }}
+                        server: https://kubernetes.default.svc
+                    project: default
+                    source: 
+                      repoURL: {{ $params.cluster.argocd.configRepoUrl }}
+                      targetRevision: HEAD
+                      path: argocd/{{ $params.type }}/{{ $params.stage }}/{{ $params.id }}
+                    syncPolicy:
+                      automated:
+                        allowEmpty: true
+                        prune: true
+                        selfHeal: true
+                      syncOptions:
+                      - CreateNamespace=true
+                      - Validate=false
+                      - SkipDryRunOnMissingResource
+                      - ServerSideApply=true
+            ---
+            {{- end }}
+            {{- end }}
+
+    - step: patch-and-transform
+      functionRef:
+        name: crossplane-contrib-function-patch-and-transform
+      input:
+        apiVersion: pt.fn.crossplane.io/v1beta1
+        kind: Resources
+        resources:
+          # Only use patch-and-transform for resources that patch the status of the composite resource.
+          - name: eks-cluster
+            patches:
+            - fromFieldPath: status.atProvider.identity[0].oidc[0].issuer
+              policy:
+                fromFieldPath: Optional
+              toFieldPath: status.eks.oidc
+              type: ToCompositeFieldPath
+            - fromFieldPath: status.atProvider.identity[0].oidc[0].issuer
+              policy:
+                fromFieldPath: Optional
+              toFieldPath: status.eks.oidcUri
+              transforms:
+                - string:
+                    trim: https://
+                    type: TrimPrefix
+                  type: string
+              type: ToCompositeFieldPath
+            - fromFieldPath: status.atProvider.roleArn
+              policy:
+                fromFieldPath: Optional
+              toFieldPath: status.eks.accountId
+              transforms:
+                - string:
+                    regexp:
+                      group: 1
+                      match: arn:aws:iam::(\d+):.*
+                    type: Regexp
+                  type: string
+              type: ToCompositeFieldPath
+          - name: oidc-provider
+            patches:
+              - fromFieldPath: status.atProvider.arn
+                policy:
+                  fromFieldPath: Optional
+                toFieldPath: status.eks.oidcArn
+                type: ToCompositeFieldPath
+          - name: nodegroup-role
+            patches:
+            - fromFieldPath: status.atProvider.arn
+              policy:
+                fromFieldPath: Optional
+              toFieldPath: status.eks.nodeGroupRoleArn
+              type: ToCompositeFieldPath
+
+          # ProviderConfigs need to be set to "readinessChecks: None" to avoid blocking the composition
+          - name: providerconfig-k8s
+            readinessChecks:
+              - type: None
+          - name: providerconfig-helm
+            readinessChecks:
+              - type: None
+          - name: environmentconfig
+            readinessChecks:
+              - type: None
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: crossplane-contrib-function-auto-ready
+  writeConnectionSecretsToNamespace: crossplane-system

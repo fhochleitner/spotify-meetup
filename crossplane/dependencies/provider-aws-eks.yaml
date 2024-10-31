@@ -1,0 +1,15 @@
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: upbound-provider-aws-eks
+spec:
+  ignoreCrossplaneConstraints: false
+  package: xpkg.upbound.io/upbound/provider-aws-eks:v1.16.0@sha256:ef2cbf7786fd3cd3d6f1b674e7487af63f93fa6adafc39d620838d67de342a5b
+  packagePullPolicy: IfNotPresent
+  revisionActivationPolicy: Automatic
+  revisionHistoryLimit: 5
+  runtimeConfigRef:
+    apiVersion: pkg.crossplane.io/v1beta1
+    kind: DeploymentRuntimeConfig
+    name: default
+  skipDependencyResolution: false

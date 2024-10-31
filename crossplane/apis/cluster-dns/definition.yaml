@@ -1,0 +1,114 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xclusterdnss.aws.squer.meetup.com
+spec:
+  defaultCompositionRef:
+    name: xclusterdnss.aws.squer.meetup.com
+  connectionSecretKeys:
+    - kubeconfig
+  group: aws.squer.meetup.com
+  names:
+    kind: XClusterDNS
+    plural: xclusterdnss
+  claimNames:
+    kind: ClusterDNS
+    plural: clusterdnss
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                parameters:
+                  type: object
+                  description: DNS Configuration for the Cluster
+                  properties:
+                    id:
+                      type: string
+                      description: ID of this Cluster that other objects will use to refer to it.
+                    type:
+                      type: string
+                      description: Type of the Cluster
+                      default: workload
+                    stage:
+                      type: string
+                      description: Stage of the cluster
+                      default: dev
+                    region:
+                      type: string
+                      description: Region is the region you'd like your resource to be created in.
+                      default: eu-west-1
+                    accountID:
+                      type: string
+                      description: AccountID is the account you'd like your resource to be created in.
+                      default: "767398009129"
+                    baseDomain:
+                      type: string
+                      description: The basedomain to use.
+                      default: fhochleitner.dev
+                    baseDomainHostedZoneId:
+                      type: string
+                      description: the hosted zone id of the basedomain
+                      default: "Z08839573ES5X34BPWS1Q"
+                    ingressController:
+                      type: object
+                      description: The ingress controller configuration
+                      properties:
+                        serviceName:
+                          type: string
+                          description: The service name of the ingress controller
+                          default: nginx-ingress-controller
+                        namespace:
+                          type: string
+                          description: The namespace of the ingress controller
+                          default: nginx-ingress-controller
+                    clusterIssuer:
+                      type: object
+                      description: The cluster issuer configuration
+                      properties:
+                        serviceAccount:
+                          type: string
+                          description: The service account to use for the cluster issuer
+                          default: "cert-manager"
+                        namespace:
+                          type: string
+                          description: The namespace to use for the cluster issuer
+                          default: "cert-manager"
+
+                    providerConfigs:
+                      type: object
+                      description: The provider configs to use for the resources
+                      properties:
+                        dnsRoot:
+                          type: string
+                          description: The provider config to use for the DNS account
+                          default: default
+                        inCluster:
+                          type: string
+                          description: The provider config to use for the LoadBalancer account
+                          default: providerconfig-k8s-in-cluster
+                        default:
+                          type: string
+                          description: Crossplane ProviderConfig to use for provisioning this resources
+                          default: default
+                    deletionPolicy:
+                      description: Delete the external resources when the Claim/XR is deleted. Defaults to Delete
+                      enum:
+                        - Delete
+                        - Orphan
+                      type: string
+                      default: Delete
+            status:
+              description: A Status represents the observed environments
+              type: object
+              properties:
+                loadbalancerHostname:
+                  type: string
+                hostedZoneID:
+                  type: string

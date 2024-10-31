@@ -1,0 +1,24 @@
+apiVersion: aws.squer.meetup.com/v1alpha2
+kind: ClusterNetwork
+metadata:
+  name: jukebox
+  namespace: crossplane-system
+spec:
+  parameters:
+    id: jukebox
+    stage: demo
+    enableInternetGateway: true
+    vpcCidrBlock: 10.0.0.0/16
+    subnets:
+      - type: public
+        cidrBlock: 10.0.0.0/18
+        availabilityZone: a
+      - type: public
+        cidrBlock: 10.0.64.0/18
+        availabilityZone: b
+      - type: private
+        cidrBlock: 10.0.128.0/18
+        availabilityZone: a
+      - type: private
+        cidrBlock: 10.0.192.0/18
+        availabilityZone: b

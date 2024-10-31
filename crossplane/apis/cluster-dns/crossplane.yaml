@@ -1,0 +1,33 @@
+apiVersion: meta.pkg.crossplane.io/v1alpha1
+kind: Configuration
+metadata:
+  name: configuration-aws-cluster-dns
+  annotations:
+    meta.crossplane.io/version: 0.0.4
+    meta.crossplane.io/description: |
+      A crossplane configuration for deploying a workload cluster on AWS.
+spec:
+  crossplane:
+    version: ">=v1.16.0"
+  dependsOn:
+    - provider: xpkg.upbound.io/crossplane-contrib/provider-kubernetes
+      # renovate: datasource=github-releases depName=crossplane-contrib/provider-kubernetes
+      version: ">=v0.14.0"
+    - provider: xpkg.upbound.io/upbound/provider-aws-route53
+      # renovate: datasource=github-releases depName=upbound/provider-aws
+      version: ">=v1.14.0"
+    - provider: xpkg.upbound.io/upbound/provider-aws-iam
+      # renovate: datasource=github-releases depName=upbound/provider-aws
+      version: ">=v1.14.0"
+    - provider: xpkg.upbound.io/upbound/provider-aws-eks
+      # renovate: datasource=github-releases depName=upbound/provider-aws
+      version: ">=v1.14.0"
+    - function: xpkg.upbound.io/crossplane-contrib/function-auto-ready
+      # renovate: datasource=github-releases depName=crossplane-contrib/function-auto-ready
+      version: ">=v0.2.1"
+    - function: xpkg.upbound.io/crossplane-contrib/function-go-templating
+      # renovate: datasource=github-releases depName=crossplane-contrib/function-go-templating
+      version: ">=v0.5.0"
+    - function: xpkg.upbound.io/crossplane-contrib/function-environment-configs
+      # renovate: datasource=github-releases depName=crossplane-contrib/function-environment-configs
+      version: ">=v0.0.7"

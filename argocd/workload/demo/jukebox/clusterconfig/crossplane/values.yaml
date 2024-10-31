@@ -1,0 +1,17 @@
+crossplane:
+  args:
+    - "--enable-environment-configs"
+  replicas: 1
+  serviceAccount:
+    name: crossplane
+    create: false
+    customAnnotations: {}
+  resourcesCrossplane:
+    limits:
+      memory: 2048Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  provider:
+    packages:
+      - xpkg.upbound.io/crossplane-contrib/provider-spotify:v0.2.3

@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: spotify-auth-proxy
+  namespace: gitops-argocd
+spec:
+  project: default
+  source:
+    chart: spotify-auth-proxy
+    repoURL:  https://tampakrap.github.io/helm-charts
+    targetRevision: "*"
+    helm:
+      releaseName: spotify-auth-proxy
+      parameters:
+        - name: 'clientCredentialsSecret.name'
+          value: "spotify-auth-proxy-config"
+        - name: "proxyAPIKeySecret.external"
+          value: "true"
+        - name: "proxyAPIKeySecret.name"
+          value: "spotify-auth-proxy-config"
+        - name: "spotifyProxyBaseURI"
+          value: "https://spotify.jukebox.fhochleitner.dev"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: spotify
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      selfHeal: true
+      prune: true
+      allowEmpty: true

@@ -1,0 +1,22 @@
+apiVersion: playlist.spotify.crossplane.io/v1alpha1
+kind: Playlist
+metadata:
+  name: proseccy-boy
+spec:
+  deletionPolicy: Delete
+  forProvider:
+    description: created and managed by crossplane-provider-spotify
+    name: Prosecco Boy's finest @ CNCF Meetup Munich
+    public: true
+    tracks:
+      - 64kYiOTKR2utG0NNoEMZLl
+      - 64kYiOTKR2utG0NNoEMZLl
+      - 4PTG3Z6ehGkBFwjybzWkR8
+      - 64kYiOTKR2utG0NNoEMZLl
+      - 64kYiOTKR2utG0NNoEMZLl
+      - 4PTG3Z6ehGkBFwjybzWkR8
+
+  managementPolicies:
+    - '*'
+  providerConfigRef:
+    name: default

@@ -1,0 +1,15 @@
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: upbound-provider-aws-route53
+spec:
+  ignoreCrossplaneConstraints: false
+  package: xpkg.upbound.io/upbound/provider-aws-route53:v1.16.0@sha256:5c05429c586cc51a31cb5dd6973a448ae08b1eef1b2e5b6536902fa67d6df563
+  packagePullPolicy: IfNotPresent
+  revisionActivationPolicy: Automatic
+  revisionHistoryLimit: 5
+  runtimeConfigRef:
+    apiVersion: pkg.crossplane.io/v1beta1
+    kind: DeploymentRuntimeConfig
+    name: default
+  skipDependencyResolution: false

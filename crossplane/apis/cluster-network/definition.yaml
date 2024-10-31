@@ -1,0 +1,88 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xclusternetworks.aws.squer.meetup.com
+spec:
+  defaultCompositionRef:
+    name: xclusternetworks.aws.squer.meetup.com
+  group: aws.squer.meetup.com
+  names:
+    kind: XClusterNetwork
+    plural: xclusternetworks
+  claimNames:
+    kind: ClusterNetwork
+    plural: clusternetworks
+  versions:
+    - name: v1alpha2
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          description: XClusterNetwork is the Schema for defining an AWS network configuration for EKS Clusters
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                parameters:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      description: ID of the network and it's subcomponents
+                    stage:
+                      type: string
+                      description: Stage is the stage of the environment.
+                      default: playground
+                    region:
+                      type: string
+                      description: Region is the region you'd like your resource to be created in.
+                      default: "eu-west-1"
+                    enableInternetGateway:
+                      type: boolean
+                      description: Enable an internet gateway for the VPC. Defaults to true
+                      default: false
+                    vpcCidrBlock:
+                      type: string
+                      default: 192.168.0.0/16
+                    subnets:
+                      type: array
+                      description: Subnets to create in the VPC
+                      items:
+                        type: object
+                        properties:
+                          type:
+                            type: string
+                            description: Type of the subnet
+                            enum:
+                              - private
+                              - public
+                          cidrBlock:
+                            type: string
+                            description: CIDR block of the subnet
+                          availabilityZone:
+                            type: string
+                            description: Availability zone to create the subnet in
+                        required:
+                          - type
+                          - cidrBlock
+                          - availabilityZone
+                    deletionPolicy:
+                      description: Delete the external resources when the Claim/XR is deleted. Defaults to Delete
+                      enum:
+                        - Delete
+                        - Orphan
+                      type: string
+                      default: Delete
+                    providerConfigName:
+                      description: Crossplane ProviderConfig to use for provisioning this resources
+                      type: string
+                      default: default
+                  required:
+                    - id
+                    - vpcCidrBlock
+                    - subnets
+                    - providerConfigName
+              required:
+                - parameters
+

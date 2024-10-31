@@ -1,0 +1,26 @@
+apiVersion: aws.squer.meetup.com/v1alpha1
+kind: ClusterDNS
+metadata:
+  name: jukebox
+  namespace: crossplane-system
+  labels:
+    provider: aws
+spec:
+  parameters:
+    id: "jukebox"
+    accountID: "767398009129"
+    stage: "demo"
+    region: "eu-west-1"
+    type: "workload"
+    providerConfigs:
+      default: "default"
+      inCluster:  "provider-k8s-jukebox"
+      dnsRoot: "default"
+    deletionPolicy: "Delete"
+    baseDomainHostedZoneId: "Z08839573ES5X34BPWS1Q"
+    ingressController:
+      serviceName: "nginx-ingress-controller"
+      namespace: "nginx-ingress-controller"
+    clusterIssuer:
+      serviceAccount: "cert-manager"
+      namespace: "cert-manager"
