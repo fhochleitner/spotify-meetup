@@ -9,6 +9,7 @@ spec:
     stage: demo
     enableInternetGateway: true
     vpcCidrBlock: 10.0.0.0/16
+    region: eu-west-1
     subnets:
       - type: public
         cidrBlock: 10.0.0.0/18
