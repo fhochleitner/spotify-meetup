@@ -1,0 +1,8 @@
+# https://marketplace.upbound.io/configurations/devops-toolkit/dot-kubernetes/v0.12.150
+
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: dot-kubernetes
+spec:
+  package: xpkg.upbound.io/devops-toolkit/dot-kubernetes:v0.12.150
